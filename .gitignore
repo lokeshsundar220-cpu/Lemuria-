@@ -1,24 +1,48 @@
-# Environment / secrets
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
 
 # Dependencies
 node_modules/
+jspm_packages/
 
-# Build output
+# Production and build outputs
 dist/
+build/
+out/
+.next/
+*.tsbuildinfo
 
 # Logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# IDE
+# IDEs and Editors
 .vscode/
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Temporary files
+# Temporary & Cache files
 *.tmp
+*.temp
+.cache/
+.eslintcache
