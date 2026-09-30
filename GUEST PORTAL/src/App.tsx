@@ -39,10 +39,10 @@ import {
 } from './services/api';
 
 const DEPTS: Record<string, string[]> = {
-  Housekeeping: ['Room cleaning', 'Fresh towels', 'Room supplies'],
-  Maintenance: ['AC', 'Electrical', 'Plumbing', 'Room equipment'],
-  'Food & Beverage': ['Breakfast', 'Room service', 'Dining request'],
-  Concierge: ['Hotel information', 'Travel assistance', 'Special requests']
+  Housekeeping: ['Room cleaning', 'Fresh towels', 'Toiletries refill', 'Bedding change', 'Extra pillows'],
+  Maintenance: ['AC / Climate issue', 'Plumbing / Water issue', 'TV / Audio issue', 'Lighting problem', 'Room fixture repair'],
+  'Food & Beverage': ['In-room breakfast', 'Dinner service', 'Bottled water & ice', 'Coffee / Tea refill', 'Special dietary order'],
+  Concierge: ['Luggage assistance', 'Airport taxi booking', 'Wake-up call', 'Local city guide', 'Late check-out query']
 };
 
 export const App: React.FC = () => {
@@ -465,6 +465,9 @@ export const App: React.FC = () => {
           <DashboardPage
             user={user}
             reservation={reservation}
+            requests={requests}
+            isCheckedIn={isCheckedIn}
+            onOpenServiceModal={(d, item) => setServiceModalData({ dept: d, item: item || '' })}
             onNavigate={navigate}
             onToast={showToast}
           />
@@ -504,8 +507,10 @@ export const App: React.FC = () => {
         {mainRoute === 'requests' && (
           <RequestsPage
             requests={requests}
+            reservation={reservation}
             feedbackMap={feedback.req}
             isCheckedIn={isCheckedIn}
+            onOpenServiceModal={(d, item) => setServiceModalData({ dept: d, item: item || '' })}
             onSubmitFeedback={handleSubmitServiceFeedback}
             onNavigate={navigate}
             onToast={showToast}
@@ -565,6 +570,7 @@ export const App: React.FC = () => {
         <ServiceRequestModal
           initialDept={serviceModalData.dept}
           initialItem={serviceModalData.item}
+          roomNumber={reservation?.roomNumber || null}
           deptMap={DEPTS}
           onClose={() => setServiceModalData(null)}
           onSubmit={(dept, desc, priority) => {

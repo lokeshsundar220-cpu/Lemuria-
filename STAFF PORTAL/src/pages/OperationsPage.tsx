@@ -143,9 +143,9 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
   };
 
   const renderBoard = (dept: string, viewerWorker: boolean) => {
-    const list = tasks.filter((t) => t.department === dept);
-    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'ACCEPTED');
-    const ip = list.filter((t) => t.status === 'IN PROGRESS');
+    const list = tasks.filter((t) => (t.department || '').toLowerCase() === dept.toLowerCase());
+    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED');
+    const ip = list.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS');
     const dn = list.filter((t) => t.status === 'COMPLETED');
 
     const filterWorker = (arr: typeof list) =>

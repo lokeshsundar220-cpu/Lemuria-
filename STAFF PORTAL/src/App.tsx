@@ -196,7 +196,7 @@ export const App: React.FC = () => {
     initSession();
   }, [loadBackendData]);
 
-  // Periodic polling for task offers, emergencies, notifications, and task status
+  // Periodic polling for task offers, emergencies, notifications, staff status, and task status
   useEffect(() => {
     if (!auth) return;
     const interval = setInterval(async () => {
@@ -215,22 +215,24 @@ export const App: React.FC = () => {
           setOffers([]);
         }
 
-        // Poll notifications & emergencies
-        const [latestNotes, latestEmg, latestTasks, latestRooms] = await Promise.all([
+        // Poll notifications, emergencies, tasks, rooms, staff
+        const [latestNotes, latestEmg, latestTasks, latestRooms, latestStaff] = await Promise.all([
           api.fetchNotifications().catch(() => []),
           api.fetchActiveEmergencies().catch(() => []),
           api.fetchTasks().catch(() => []),
-          api.fetchRooms().catch(() => [])
+          api.fetchRooms().catch(() => []),
+          api.fetchAllStaff().catch(() => [])
         ]);
 
         if (latestNotes.length > 0) setNotes(latestNotes);
         setEmergencies(latestEmg);
         if (latestTasks.length > 0) setTasks(latestTasks);
         if (latestRooms.length > 0) setRooms(latestRooms);
+        if (latestStaff.length > 0) setStaff(latestStaff);
       } catch {
         // Silently handle transient network polling hiccup
       }
-    }, 4000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [auth]);
@@ -358,6 +360,19 @@ export const App: React.FC = () => {
     } finally {
       setBusy(false);
       setBusyMsg('');
+    }
+  };
+
+  const handleTimeoutTask = async () => {
+    const activeOffer = offers[0];
+    if (!activeOffer) return;
+    setOffers([]);
+    try {
+      await api.timeoutTaskOffer(activeOffer.id);
+      showToast('Task offer timed out. Reassigned to next available staff.');
+      await loadBackendData();
+    } catch (err: unknown) {
+      console.warn('Timeout offer error:', err);
     }
   };
 
@@ -916,6 +931,7 @@ export const App: React.FC = () => {
           busy={busy}
           onAccept={handleAcceptTask}
           onDecline={handleDeclineTask}
+          onTimeout={handleTimeoutTask}
         />
       )}
 
@@ -932,8 +948,10 @@ export const App: React.FC = () => {
           isMine={
             DISP.includes(currentStaff.department) &&
             (tasks.find((t) => t.id === activeModal.id || t._id === activeModal.id)?.assignedStaffId === currentStaff.id ||
+             tasks.find((t) => t.id === activeModal.id || t._id === activeModal.id)?.assignedStaffId === currentStaff.staffCode ||
              tasks.find((t) => t.id === activeModal.id || t._id === activeModal.id)?.assignedStaffId === currentStaff._id)
           }
+
           onClose={() => setActiveModal(null)}
           onStartTask={handleStartTask}
           onOpenComplete={(id) => setActiveModal({ type: 'done', id })}

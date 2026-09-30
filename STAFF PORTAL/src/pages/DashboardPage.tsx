@@ -60,10 +60,12 @@ interface DashboardPageProps {
     id: string;
     name: string;
     department: string;
-    enabled: string;
+    enabled: string | boolean;
     duty: string;
+    dutyStatus?: string;
     availability: string;
   }[];
+
   notes: {
     type: string;
     msg: string;
@@ -144,10 +146,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   // Metrics computation
-  const d = staff.department;
-  const deptTasks = tasks.filter((t) => t.department === d);
+  const d = (staff.department || '').toLowerCase();
+  const deptTasks = tasks.filter((t) => (t.department || '').toLowerCase() === d);
   const onDutyStaff = allStaff.filter(
-    (s) => s.department === d && s.duty === 'ON' && s.enabled === 'ENABLED'
+    (s) =>
+      (s.department || '').toLowerCase() === d &&
+      (s.duty === 'ON' || s.duty === 'ON_DUTY' || s.dutyStatus === 'ON_DUTY') &&
+      (s.enabled === 'ENABLED' || s.enabled === true || s.enabled === undefined)
   );
 
   let metrics: [string, string | number, string?][] = [];
@@ -157,10 +162,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ['Tasks Dispatched', deptTasks.length],
       [
         'Pending Tasks',
-        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'ACCEPTED').length,
+        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED').length,
         '--o'
       ],
-      ['Active Cleaning', deptTasks.filter((t) => t.status === 'IN PROGRESS').length, '--bl'],
+      ['Active Cleaning', deptTasks.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length, '--bl'],
       ['Completed Today', deptTasks.filter((t) => t.status === 'COMPLETED').length, '--g'],
       ['Staff On Duty', onDutyStaff.length, '--g'],
       [
@@ -180,10 +185,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ['Total Work Orders', deptTasks.length],
       [
         'Pending Repairs',
-        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'ACCEPTED').length,
+        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED').length,
         '--o'
       ],
-      ['Active Work', deptTasks.filter((t) => t.status === 'IN PROGRESS').length, '--cy'],
+      ['Active Work', deptTasks.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length, '--cy'],
       ['Repairs Completed', deptTasks.filter((t) => t.status === 'COMPLETED').length, '--g'],
       ['Technicians On Duty', onDutyStaff.length, '--g'],
       [
@@ -202,10 +207,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ['Orders Received', deptTasks.length],
       [
         'Pending Orders',
-        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'ACCEPTED').length,
+        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED').length,
         '--o'
       ],
-      ['Preparing / Delivery', deptTasks.filter((t) => t.status === 'IN PROGRESS').length, '--bl'],
+      ['Preparing / Delivery', deptTasks.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length, '--bl'],
       ['Fulfilled Orders', deptTasks.filter((t) => t.status === 'COMPLETED').length, '--g'],
       ['Staff On Duty', onDutyStaff.length, '--g']
     ];
@@ -225,12 +230,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   } else {
     // Manager
     const totalStaff = allStaff.length;
-    const onDutyCount = allStaff.filter((s) => s.duty === 'ON' && s.enabled === 'ENABLED').length;
+    const onDutyCount = allStaff.filter(
+      (s) =>
+        (s.duty === 'ON' || s.duty === 'ON_DUTY' || s.dutyStatus === 'ON_DUTY') &&
+        (s.enabled === 'ENABLED' || s.enabled === true || s.enabled === undefined)
+    ).length;
     const availableCount = allStaff.filter(
-      (s) => s.duty === 'ON' && s.availability === 'AVAILABLE' && s.enabled === 'ENABLED'
+      (s) =>
+        (s.duty === 'ON' || s.duty === 'ON_DUTY' || s.dutyStatus === 'ON_DUTY') &&
+        (s.availability === 'AVAILABLE' || s.availability === 'available') &&
+        (s.enabled === 'ENABLED' || s.enabled === true || s.enabled === undefined)
     ).length;
     const busyCount = allStaff.filter(
-      (s) => s.duty === 'ON' && s.availability === 'BUSY' && s.enabled === 'ENABLED'
+      (s) =>
+        (s.duty === 'ON' || s.duty === 'ON_DUTY' || s.dutyStatus === 'ON_DUTY') &&
+        (s.availability === 'BUSY' || s.availability === 'busy') &&
+        (s.enabled === 'ENABLED' || s.enabled === true || s.enabled === undefined)
     ).length;
     const suspendedCount = allStaff.filter((s) => s.enabled === 'SUSPENDED').length;
     const pendingStaffActions = allStaff.filter(
@@ -320,13 +335,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   const renderBoard = (dept: string, viewerWorker: boolean) => {
-    const list = tasks.filter((t) => t.department === dept);
-    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'ACCEPTED');
-    const ip = list.filter((t) => t.status === 'IN PROGRESS');
+    const list = tasks.filter((t) => (t.department || '').toLowerCase() === dept.toLowerCase());
+    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED');
+    const ip = list.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS');
     const dn = list.filter((t) => t.status === 'COMPLETED');
 
+    const isMine = (t: typeof tasks[0]) =>
+      !t.assignedStaffId ||
+      t.assignedStaffId === staff.id ||
+      t.assignedStaffId === (staff as any).staffCode ||
+      t.assignedStaffId === (staff as any)._id;
+
     const filterWorker = (arr: typeof list) =>
-      viewerWorker ? arr.filter((t) => !t.assignedStaffId || t.assignedStaffId === staff.id) : arr;
+      viewerWorker ? arr.filter(isMine) : arr;
 
     const filteredPen = filterWorker(pen);
     const filteredIp = filterWorker(ip);
@@ -341,7 +362,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </h3>
           {filteredPen.length > 0 ? (
             filteredPen.map((t) =>
-              renderTaskCard(t, viewerWorker && t.assignedStaffId === staff.id)
+              renderTaskCard(t, viewerWorker && isMine(t) && !!t.assignedStaffId)
             )
           ) : (
             <div className="empty">
@@ -361,7 +382,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </h3>
           {filteredIp.length > 0 ? (
             filteredIp.map((t) =>
-              renderTaskCard(t, viewerWorker && t.assignedStaffId === staff.id)
+              renderTaskCard(t, viewerWorker && isMine(t))
             )
           ) : (
             <div className="empty">
@@ -373,6 +394,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           )}
         </div>
+
 
         <div className="col">
           <h3>
@@ -620,9 +642,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </span>
                     </div>
                     <div className="row">
-                      <Pill label={x.enabled} />
+                      <Pill label={x.enabled === false || x.enabled === 'DISABLED' ? 'DISABLED' : 'ENABLED'} />
                       <Pill label={x.duty === 'ON' ? x.availability : 'OFF DUTY'} />
                     </div>
+
                   </div>
                 ))}
               </div>

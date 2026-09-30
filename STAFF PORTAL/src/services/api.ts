@@ -547,8 +547,8 @@ export async function approveGuestCheckIn(reservationId: string): Promise<any> {
 // MANAGER & STAFF DIRECTORY APIs
 // ==========================================
 
-export async function fetchAllStaff(): Promise<StaffMember[]> {
-  const rawStaff = await request<any[]>('/manager/staff');
+export async function fetchHotelStaff(): Promise<StaffMember[]> {
+  const rawStaff = await request<any[]>('/staff');
   return rawStaff.map((s) => ({
     id: s.staffCode || s.staffId || s._id,
     _id: s._id,
@@ -562,10 +562,35 @@ export async function fetchAllStaff(): Promise<StaffMember[]> {
     hotelId: s.hotelId?._id || s.hotelId || '',
     hotelCode: s.hotelCode || 'GRD',
     enabled: s.enabled === false || s.accountStatus === 'DISABLED' ? 'DISABLED' : (s.accountStatus || 'ENABLED'),
-    duty: (s.duty === 'ON' || s.duty === 'ON_DUTY') ? 'ON' : 'OFF',
+    duty: (s.duty === 'ON' || s.duty === 'ON_DUTY' || s.dutyStatus === 'ON_DUTY') ? 'ON' : 'OFF',
     availability: s.availability || 'AVAILABLE',
     currentTaskId: s.currentTaskId?._id || s.currentTaskId || null
   }));
+}
+
+export async function fetchAllStaff(): Promise<StaffMember[]> {
+  try {
+    const rawStaff = await request<any[]>('/manager/staff');
+    return rawStaff.map((s) => ({
+      id: s.staffCode || s.staffId || s._id,
+      _id: s._id,
+      staffCode: s.staffCode || s.staffId,
+      staffId: s.staffCode || s.staffId,
+      name: s.name || s.fullName,
+      fullName: s.fullName || s.name,
+      email: s.email,
+      department: (s.department || 'housekeeping').toLowerCase(),
+      role: s.role,
+      hotelId: s.hotelId?._id || s.hotelId || '',
+      hotelCode: s.hotelCode || 'GRD',
+      enabled: s.enabled === false || s.accountStatus === 'DISABLED' ? 'DISABLED' : (s.accountStatus || 'ENABLED'),
+      duty: (s.duty === 'ON' || s.duty === 'ON_DUTY' || s.dutyStatus === 'ON_DUTY') ? 'ON' : 'OFF',
+      availability: s.availability || 'AVAILABLE',
+      currentTaskId: s.currentTaskId?._id || s.currentTaskId || null
+    }));
+  } catch {
+    return await fetchHotelStaff();
+  }
 }
 
 export async function createStaffMember(data: {

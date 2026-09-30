@@ -92,11 +92,16 @@ const getAllStaff = async (req, res, next) => {
     const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
     const { department, dutyStatus, duty, accountStatus, enabled } = req.query;
 
-    const query = { $or: [{ hotelId }, { hotel: hotelId }] };
+    const query = { $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }] };
     if (department) {
       query.department = { $in: [department, department.toLowerCase(), department.toUpperCase()] };
     }
-    if (dutyStatus || duty) query.duty = dutyStatus || duty;
+    if (dutyStatus || duty) {
+      const dVal = dutyStatus || duty;
+      query.$and = [
+        { $or: [{ duty: dVal }, { dutyStatus: dVal }] }
+      ];
+    }
     if (accountStatus === 'DISABLED' || enabled === 'false' || enabled === false) query.enabled = false;
     else if (accountStatus === 'ENABLED' || enabled === 'true' || enabled === true) query.enabled = true;
 
@@ -222,9 +227,9 @@ const getStaffWorkload = async (req, res, next) => {
   try {
     const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
 
-    const totalStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], enabled: { $ne: false } });
-    const onDutyStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], duty: { $in: ['ON', 'ON_DUTY'] } });
-    const busyStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], availability: 'BUSY' });
+    const totalStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }], enabled: { $ne: false }, accountStatus: { $nin: ['DISABLED', 'DELETED'] } });
+    const onDutyStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }], $or: [{ duty: { $in: ['ON', 'ON_DUTY'] } }, { dutyStatus: { $in: ['ON', 'ON_DUTY'] } }], enabled: { $ne: false } });
+    const busyStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }], availability: 'BUSY', enabled: { $ne: false } });
 
     const activeTasks = await Task.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], status: { $in: ['ACCEPTED', 'IN_PROGRESS'] } });
     const pendingTasks = await Task.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], status: { $in: ['PENDING', 'OFFERED'] } });

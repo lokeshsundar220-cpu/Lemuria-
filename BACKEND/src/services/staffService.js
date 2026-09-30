@@ -1,4 +1,5 @@
 const { Staff, Task, AuditLog } = require('../models');
+const taskService = require('./taskService');
 
 class StaffService {
   async startDuty(staffId, userId = null) {
@@ -12,6 +13,7 @@ class StaffService {
     }
 
     staff.duty = 'ON_DUTY';
+    staff.dutyStatus = 'ON_DUTY';
     staff.availability = 'AVAILABLE';
     staff.dutyStartedAt = new Date();
     staff.lastDutyChangedAt = new Date();
@@ -24,6 +26,10 @@ class StaffService {
       entityId: staff._id.toString(),
       details: { staffCode: staff.staffCode, department: staff.department, dutyStatus: 'ON_DUTY' }
     });
+
+    console.log(`[StaffService] Staff ${staff.staffCode} (${staff.department}) started duty. Triggering dispatch for pending tasks...`);
+    const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
+    await taskService.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
 
     return staff;
   }
@@ -44,6 +50,7 @@ class StaffService {
     }
 
     staff.duty = 'OFF_DUTY';
+    staff.dutyStatus = 'OFF_DUTY';
     staff.availability = 'AVAILABLE';
     staff.currentTaskId = null;
     staff.lastDutyChangedAt = new Date();
@@ -62,12 +69,24 @@ class StaffService {
 
   async getStaffList(hotelId, filters = {}) {
     const query = {};
-    if (hotelId) query.hotelId = hotelId;
-    if (filters.department) query.department = filters.department;
-    if (filters.dutyStatus || filters.duty) query.duty = filters.dutyStatus || filters.duty;
-    if (filters.availability) query.availability = filters.availability;
-    if (filters.accountStatus === 'DISABLED' || filters.enabled === false) query.enabled = false;
-    else if (filters.accountStatus === 'ENABLED' || filters.enabled === true) query.enabled = true;
+    if (hotelId) {
+      query.$or = [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }];
+    }
+    if (filters.department) {
+      query.department = { $in: [filters.department, filters.department.toLowerCase(), filters.department.toUpperCase()] };
+    }
+    if (filters.dutyStatus || filters.duty) {
+      const dutyVal = filters.dutyStatus || filters.duty;
+      query.$or = [{ duty: dutyVal }, { dutyStatus: dutyVal }];
+    }
+    if (filters.availability) {
+      query.availability = filters.availability;
+    }
+    if (filters.accountStatus === 'DISABLED' || filters.enabled === false) {
+      query.enabled = false;
+    } else if (filters.accountStatus === 'ENABLED' || filters.enabled === true) {
+      query.enabled = true;
+    }
 
     return await Staff.find(query).populate('hotelId').populate('currentTaskId').sort({ department: 1, name: 1 });
   }

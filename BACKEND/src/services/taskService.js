@@ -34,13 +34,14 @@ class TaskService {
       taskNumber: taskCode,
       hotelId: actualHotelId,
       hotel: actualHotelId,
-      department: actualDept,
-      category: actualDept,
+      department: actualDept.toUpperCase(),
+      category: actualDept.toUpperCase(),
       type,
-      title: title || `Task: ${actualDept}`,
+      title: title || `${actualDept.toUpperCase()} Task`,
       description: description || '',
-      priority,
+      priority: priority.toUpperCase(),
       status: 'PENDING',
+      offerStatus: 'NONE',
       roomId,
       room: roomId,
       roomNumber: rNum,
@@ -53,9 +54,11 @@ class TaskService {
       createdByStaff: createdByStaffId,
       offeredTo: [],
       offeredToStaff: [],
+      declinedBy: [],
       isDemo
     });
 
+    console.log(`[TaskDispatcher] Created task ${task.taskCode} (${task.department}) for hotel ${actualHotelId}. Triggering dispatcher...`);
     await this.offerTaskToNextEligibleStaff(task._id);
 
     return await Task.findById(task._id)
@@ -81,50 +84,170 @@ class TaskService {
       isDemo: task.isDemo || false
     });
 
-    task.status = 'OFFERED';
+    task.status = 'PENDING';
     task.offerStatus = 'OFFERED';
     if (!task.offeredTo) task.offeredTo = [];
     task.offeredTo.push(staffId);
     await task.save();
 
+    // Create a staff notification for this new task offer
+    try {
+      const roomTxt = task.roomNumber ? `Room ${task.roomNumber}` : 'General';
+      const prioTxt = task.priority ? `${task.priority} Priority` : 'Normal Priority';
+      await Notification.create({
+        hotelId: task.hotelId || task.hotel,
+        recipientType: 'STAFF',
+        recipientId: staffId,
+        type: 'TASK_OFFER',
+        title: `🔔 New ${task.department} Task`,
+        body: `${roomTxt} · ${task.title || task.type || 'Service Request'} (${prioTxt})`,
+        read: false,
+        refType: 'Task',
+        refId: task._id
+      });
+    } catch (notifErr) {
+      console.warn('[TaskDispatcher] Notification error:', notifErr.message);
+    }
+
+    console.log(`[TaskDispatcher] TaskOffer ${offer._id} created for Task ${task.taskCode} -> Staff ${staffId}. Expires at ${expiresAt.toISOString()}`);
     return offer;
   }
 
+
   async offerTaskToNextEligibleStaff(taskId) {
     const task = await Task.findById(taskId);
-    if (!task) throw new Error('Task not found');
-
-    if (['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(task.status)) {
+    if (!task) {
+      console.log(`[TaskDispatcher] Task ${taskId} not found`);
       return null;
     }
 
-    const deptMatch = task.department === 'FOOD_AND_BEVERAGE' || task.department === 'fnb'
+    if (['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(task.status)) {
+      console.log(`[TaskDispatcher] Task ${task.taskCode} status is ${task.status}. Skipping dispatch.`);
+      return null;
+    }
+
+    const deptMatch = (task.department === 'FOOD_AND_BEVERAGE' || task.department === 'fnb')
       ? ['FNB', 'FOOD_AND_BEVERAGE', 'fnb', 'food_and_beverage']
       : [task.department, (task.department || '').toLowerCase(), (task.department || '').toUpperCase()];
     
     const targetHotelId = task.hotelId || task.hotel;
 
-    const eligibleStaff = await Staff.find({
-      $or: [{ hotelId: targetHotelId }, { hotel: targetHotelId }],
+    // Find staff who currently have an active unexpired offer
+    const activeOfferStaffIds = await TaskOffer.find({
+      status: 'OFFERED',
+      expiresAt: { $gt: new Date() }
+    }).distinct('staffId');
+
+    const excludedStaffIds = [
+      ...(task.offeredTo || []),
+      ...(task.declinedBy || []),
+      ...activeOfferStaffIds
+    ];
+
+    // Diagnostic counts
+    const onDutyCount = await Staff.countDocuments({
+      $or: [{ hotelId: targetHotelId }, { hotel: targetHotelId }, { hotelAccess: targetHotelId }],
       department: { $in: deptMatch },
-      duty: { $in: ['ON', 'ON_DUTY'] },
-      availability: 'AVAILABLE',
-      currentTaskId: null,
-      _id: { $nin: task.offeredTo || [] }
-    }).sort({ lastDutyChangedAt: 1 });
+      $or: [{ duty: { $in: ['ON', 'ON_DUTY'] } }, { dutyStatus: { $in: ['ON', 'ON_DUTY'] } }],
+      enabled: { $ne: false },
+      accountStatus: { $nin: ['DISABLED', 'SUSPENDED', 'DELETED'] }
+    });
+
+    const availableCount = await Staff.countDocuments({
+      $or: [{ hotelId: targetHotelId }, { hotel: targetHotelId }, { hotelAccess: targetHotelId }],
+      department: { $in: deptMatch },
+      $or: [{ duty: { $in: ['ON', 'ON_DUTY'] } }, { dutyStatus: { $in: ['ON', 'ON_DUTY'] } }],
+      $or: [{ availability: { $in: ['AVAILABLE', 'available'] } }, { availabilityStatus: { $in: ['AVAILABLE', 'available'] } }],
+      $or: [{ currentTaskId: null }, { currentTaskId: { $exists: false } }],
+      enabled: { $ne: false },
+      accountStatus: { $nin: ['DISABLED', 'SUSPENDED', 'DELETED'] }
+    });
+
+    const eligibleStaff = await Staff.find({
+      $or: [{ hotelId: targetHotelId }, { hotel: targetHotelId }, { hotelAccess: targetHotelId }],
+      department: { $in: deptMatch },
+      $and: [
+        {
+          $or: [
+            { duty: { $in: ['ON', 'ON_DUTY'] } },
+            { dutyStatus: { $in: ['ON', 'ON_DUTY'] } }
+          ]
+        },
+        {
+          $or: [
+            { availability: { $in: ['AVAILABLE', 'available'] } },
+            { availabilityStatus: { $in: ['AVAILABLE', 'available'] } }
+          ]
+        },
+        {
+          $or: [
+            { currentTaskId: null },
+            { currentTaskId: { $exists: false } }
+          ]
+        },
+        {
+          $or: [
+            { enabled: true },
+            { enabled: { $exists: false } }
+          ]
+        },
+        {
+          accountStatus: { $nin: ['DISABLED', 'SUSPENDED', 'DELETED'] }
+        }
+      ],
+      _id: { $nin: excludedStaffIds }
+    }).sort({ lastDutyChangedAt: 1, createdAt: 1 });
 
     if (!eligibleStaff || eligibleStaff.length === 0) {
+      console.log(`[TaskDispatcher] NO ELIGIBLE STAFF\nhotel: ${targetHotelId}\ndepartment: ${task.department}\nonDuty: ${onDutyCount}\navailable: ${availableCount}`);
+
       if (task.offeredTo && task.offeredTo.length > 0) {
         task.status = 'ESCALATED';
       } else {
         task.status = 'PENDING';
       }
+      task.offerStatus = 'NONE';
       await task.save();
       return null;
     }
 
     const selectedStaff = eligibleStaff[0];
+    console.log(`[TaskDispatcher] Dispatched task ${task.taskCode} to staff ${selectedStaff.staffCode || selectedStaff._id} (${selectedStaff.name || selectedStaff.fullName})`);
     return await this.offerTask(task._id, selectedStaff._id);
+  }
+
+  async dispatchPendingTasksForHotelDepartment(hotelId, department) {
+    if (!hotelId || !department) return [];
+
+    const deptMatch = (department.toUpperCase() === 'FOOD_AND_BEVERAGE' || department.toUpperCase() === 'FNB')
+      ? ['FNB', 'FOOD_AND_BEVERAGE', 'fnb', 'food_and_beverage']
+      : [department, department.toLowerCase(), department.toUpperCase()];
+
+    // Find active task offer task IDs to avoid duplicate dispatch
+    const activeOfferTaskIds = await TaskOffer.find({
+      hotelId,
+      status: 'OFFERED',
+      expiresAt: { $gt: new Date() }
+    }).distinct('taskId');
+
+    const pendingTasks = await Task.find({
+      $or: [{ hotelId }, { hotel: hotelId }],
+      department: { $in: deptMatch },
+      status: { $in: ['PENDING', 'ESCALATED'] },
+      assignedStaffId: null,
+      _id: { $nin: activeOfferTaskIds }
+    }).sort({ priority: -1, createdAt: 1 });
+
+    console.log(`[TaskDispatcher] Found ${pendingTasks.length} pending task(s) waiting in ${department} for hotel ${hotelId}`);
+
+    const dispatched = [];
+    for (const task of pendingTasks) {
+      const offer = await this.offerTaskToNextEligibleStaff(task._id);
+      if (offer) {
+        dispatched.push(offer);
+      }
+    }
+    return dispatched;
   }
 
   async acceptTaskOffer(offerId, staffId) {
@@ -151,22 +274,44 @@ class TaskService {
     }
 
     const staff = await Staff.findById(staffId);
+    if (!staff) {
+      throw new Error('Staff member not found');
+    }
     if (staff.availability === 'BUSY' || staff.currentTaskId) {
       throw new Error('You are currently BUSY with another task');
+    }
+
+    // Atomically claim the task
+    const task = await Task.findOneAndUpdate(
+      {
+        _id: offer.taskId,
+        status: { $in: ['PENDING', 'OFFERED', 'ESCALATED'] },
+        assignedStaffId: null
+      },
+      {
+        status: 'ACCEPTED',
+        offerStatus: 'ACCEPTED',
+        assignedStaffId: staff._id,
+        assignedStaff: staff._id,
+        assignedStaffName: staff.name || staff.fullName,
+        acceptedAt: new Date()
+      },
+      { new: true }
+    );
+
+    if (!task) {
+      throw new Error('Task is no longer available or has already been assigned');
     }
 
     offer.status = 'ACCEPTED';
     offer.respondedAt = new Date();
     await offer.save();
 
-    const task = await Task.findById(offer.taskId);
-    task.status = 'ACCEPTED';
-    task.offerStatus = 'ACCEPTED';
-    task.assignedStaffId = staff._id;
-    task.assignedStaff = staff._id;
-    task.assignedStaffName = staff.name || staff.fullName;
-    task.acceptedAt = new Date();
-    await task.save();
+    // Expire any other open offers for this task
+    await TaskOffer.updateMany(
+      { taskId: task._id, _id: { $ne: offer._id }, status: 'OFFERED' },
+      { status: 'EXPIRED', respondedAt: new Date() }
+    );
 
     staff.availability = 'BUSY';
     staff.currentTaskId = task._id;
@@ -180,6 +325,7 @@ class TaskService {
       details: { taskCode: task.taskCode || task.taskNumber, staffCode: staff.staffCode }
     });
 
+    console.log(`[TaskDispatcher] Task ${task.taskCode} successfully ACCEPTED by staff ${staff.staffCode} (${staff.name})`);
     return { task, offer, staff };
   }
 
@@ -195,21 +341,34 @@ class TaskService {
       return res.task;
     }
 
-    const task = await Task.findById(taskIdOrOfferId);
-    if (!task) throw new Error('Task not found');
-
-    task.status = 'ACCEPTED';
-    task.assignedStaffId = staffId;
-    task.assignedStaff = staffId;
-    task.acceptedAt = new Date();
-    await task.save();
-
     const staff = await Staff.findById(staffId);
-    if (staff) {
-      staff.availability = 'BUSY';
-      staff.currentTaskId = task._id;
-      await staff.save();
+    if (!staff) throw new Error('Staff not found');
+    if (staff.availability === 'BUSY' || staff.currentTaskId) {
+      throw new Error('You are currently BUSY with another task');
     }
+
+    const task = await Task.findOneAndUpdate(
+      {
+        _id: taskIdOrOfferId,
+        status: { $in: ['PENDING', 'OFFERED', 'ESCALATED'] },
+        assignedStaffId: null
+      },
+      {
+        status: 'ACCEPTED',
+        offerStatus: 'ACCEPTED',
+        assignedStaffId: staff._id,
+        assignedStaff: staff._id,
+        assignedStaffName: staff.name || staff.fullName,
+        acceptedAt: new Date()
+      },
+      { new: true }
+    );
+
+    if (!task) throw new Error('Task not found or already assigned');
+
+    staff.availability = 'BUSY';
+    staff.currentTaskId = task._id;
+    await staff.save();
 
     return task;
   }
@@ -221,6 +380,7 @@ class TaskService {
       offer.status = 'TIMEOUT';
       offer.respondedAt = new Date();
       await offer.save();
+      console.log(`[TaskDispatcher] TaskOffer ${offerId} TIMED OUT. Attempting re-dispatch for Task ${offer.taskId}...`);
       await this.offerTaskToNextEligibleStaff(offer.taskId);
     }
     return { success: true, message: 'Offer timed out and passed to next eligible worker.' };
@@ -245,6 +405,7 @@ class TaskService {
       await task.save();
     }
 
+    console.log(`[TaskDispatcher] TaskOffer ${offerId} DECLINED by staff ${staffId}. Attempting re-dispatch for Task ${offer.taskId}...`);
     await this.offerTaskToNextEligibleStaff(offer.taskId);
 
     return { success: true, message: 'Offer declined. Passed to next eligible staff.' };
@@ -264,6 +425,7 @@ class TaskService {
     const task = await Task.findById(taskIdOrOfferId);
     if (task) {
       task.status = 'PENDING';
+      task.offerStatus = 'NONE';
       await task.save();
       return task;
     }
@@ -328,6 +490,10 @@ class TaskService {
       staff.availability = 'AVAILABLE';
       staff.currentTaskId = null;
       await staff.save();
+
+      // Trigger dispatch for waiting pending tasks
+      const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
+      await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
     }
 
     const targetRoomId = task.roomId || task.room;
@@ -355,11 +521,40 @@ class TaskService {
   }
 
   async getStaffTasksAndOffers(staffId) {
+    const now = new Date();
+
+    // Auto-timeout any expired offers for this staff and trigger re-dispatch
+    const expiredOffers = await TaskOffer.find({
+      staffId: staffId,
+      status: 'OFFERED',
+      expiresAt: { $lte: now }
+    });
+
+    for (const exp of expiredOffers) {
+      exp.status = 'TIMEOUT';
+      exp.respondedAt = now;
+      await exp.save();
+      await this.offerTaskToNextEligibleStaff(exp.taskId);
+    }
+
+    const staff = await Staff.findById(staffId).populate('hotelId');
+    if (
+      staff &&
+      (staff.duty === 'ON' || staff.duty === 'ON_DUTY' || staff.dutyStatus === 'ON_DUTY') &&
+      (staff.availability === 'AVAILABLE' || staff.availability === 'available') &&
+      !staff.currentTaskId &&
+      (staff.enabled !== false && staff.accountStatus !== 'DISABLED')
+    ) {
+      const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
+      await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
+    }
+
     const pendingOffers = await TaskOffer.find({
       staffId: staffId,
       status: 'OFFERED',
-      expiresAt: { $gt: new Date() }
+      expiresAt: { $gt: now }
     }).populate('taskId');
+
 
     const activeTasks = await Task.find({
       $or: [{ assignedStaffId: staffId }, { assignedStaff: staffId }],
