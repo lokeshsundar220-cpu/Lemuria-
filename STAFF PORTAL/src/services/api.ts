@@ -206,7 +206,9 @@ async function request<T>(
 
   if (!response.ok) {
     const message = data.message || data.error || `Request failed with status ${response.status}`;
-    throw new Error(message);
+    const err = new Error(message) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
   }
 
   return data.data !== undefined ? data.data : data;

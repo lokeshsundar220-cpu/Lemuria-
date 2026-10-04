@@ -23,6 +23,7 @@ const createServiceRequest = async (req, res, next) => {
       return errorResponse(res, 400, 'Department and description are required');
     }
 
+    const normalizedDept = (department || '').toUpperCase().trim();
     const count = await ServiceRequest.countDocuments();
     const requestCode = `REQ-${String(count + 1001).padStart(5, '0')}`;
 
@@ -33,13 +34,12 @@ const createServiceRequest = async (req, res, next) => {
       reservationId: activeStay._id,
       roomId: activeStay.roomId,
       roomNumber: activeStay.roomNumber,
-      department,
+      department: normalizedDept,
       serviceType: serviceType || department,
       description,
       status: 'OPEN'
     });
 
-    const normalizedDept = (department || '').toUpperCase().trim();
     if (['HOUSEKEEPING', 'MAINTENANCE', 'FNB', 'FOOD_AND_BEVERAGE'].includes(normalizedDept)) {
       const taskDept = (normalizedDept === 'FOOD_AND_BEVERAGE') ? 'FNB' : normalizedDept;
       const task = await taskService.createTask(

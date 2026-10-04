@@ -644,63 +644,89 @@ class TaskService {
   async getStaffTasksAndOffers(staffId) {
     const now = new Date();
 
-    // Auto-timeout any expired offers for this staff and trigger re-dispatch
-    const expiredOffers = await TaskOffer.find({
-      staffId: staffId,
-      status: 'OFFERED',
-      expiresAt: { $lte: now }
-    });
+    // 1. Auto-timeout any expired offers for this staff and trigger re-dispatch (isolated)
+    try {
+      const expiredOffers = await TaskOffer.find({
+        staffId: staffId,
+        status: 'OFFERED',
+        expiresAt: { $lte: now }
+      });
 
-    for (const exp of expiredOffers) {
-      exp.status = 'TIMEOUT';
-      exp.respondedAt = now;
-      await exp.save();
-      await this.offerTaskToNextEligibleStaff(exp.taskId);
+      for (const exp of expiredOffers) {
+        try {
+          exp.status = 'TIMEOUT';
+          exp.respondedAt = now;
+          await exp.save();
+          await this.offerTaskToNextEligibleStaff(exp.taskId);
+        } catch (subErr) {
+          console.warn('[TaskService] Sub-error timing out offer:', subErr.message);
+        }
+      }
+    } catch (err) {
+      console.warn('[TaskService] Error checking expired offers:', err.message);
     }
 
-    const staff = await findStaffDoc(staffId);
-    if (
-      staff &&
-      (staff.duty === 'ON' || staff.duty === 'ON_DUTY' || staff.dutyStatus === 'ON_DUTY') &&
-      (staff.availability === 'AVAILABLE' || staff.availability === 'available') &&
-      !staff.currentTaskId &&
-      (staff.enabled !== false && staff.accountStatus !== 'DISABLED')
-    ) {
-      const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
-      await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
+    // 2. Trigger dispatch for pending tasks if staff is on-duty and available (isolated)
+    let staff = null;
+    try {
+      staff = await findStaffDoc(staffId);
+      if (
+        staff &&
+        (staff.duty === 'ON' || staff.duty === 'ON_DUTY' || staff.dutyStatus === 'ON_DUTY') &&
+        (staff.availability === 'AVAILABLE' || staff.availability === 'available') &&
+        !staff.currentTaskId &&
+        (staff.enabled !== false && staff.accountStatus !== 'DISABLED')
+      ) {
+        const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
+        await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
+      }
+    } catch (err) {
+      console.warn('[TaskService] Isolated error in staff dispatch check:', err.message);
     }
 
-    const pendingOffers = await TaskOffer.find({
-      staffId: staff ? staff._id : staffId,
-      status: 'OFFERED',
-      expiresAt: { $gt: now }
-    }).populate('taskId');
+    // 3. Retrieve current pending offers, active tasks, and completed tasks
+    try {
+      const resolvedStaffId = staff ? staff._id : staffId;
 
-    const activeTasks = await Task.find({
-      $or: [
-        { assignedStaffId: staff ? staff._id : staffId },
-        { assignedStaff: staff ? staff._id : staffId },
-        { assignedStaffId: staffId },
-        { assignedStaff: staffId }
-      ],
-      status: { $in: ['ACCEPTED', 'IN_PROGRESS'] }
-    }).populate('roomId').populate('hotelId');
+      const pendingOffers = await TaskOffer.find({
+        staffId: resolvedStaffId,
+        status: 'OFFERED',
+        expiresAt: { $gt: now }
+      }).populate('taskId');
 
-    const completedTasks = await Task.find({
-      $or: [
-        { assignedStaffId: staff ? staff._id : staffId },
-        { assignedStaff: staff ? staff._id : staffId },
-        { assignedStaffId: staffId },
-        { assignedStaff: staffId }
-      ],
-      status: 'COMPLETED'
-    }).populate('roomId').sort({ completedAt: -1 }).limit(20);
+      const activeTasks = await Task.find({
+        $or: [
+          { assignedStaffId: resolvedStaffId },
+          { assignedStaff: resolvedStaffId },
+          { assignedStaffId: staffId },
+          { assignedStaff: staffId }
+        ],
+        status: { $in: ['ACCEPTED', 'IN_PROGRESS'] }
+      }).populate('roomId').populate('hotelId');
 
-    return {
-      pendingOffers,
-      activeTasks,
-      completedTasks
-    };
+      const completedTasks = await Task.find({
+        $or: [
+          { assignedStaffId: resolvedStaffId },
+          { assignedStaff: resolvedStaffId },
+          { assignedStaffId: staffId },
+          { assignedStaff: staffId }
+        ],
+        status: 'COMPLETED'
+      }).populate('roomId').sort({ completedAt: -1 }).limit(20);
+
+      return {
+        pendingOffers: pendingOffers || [],
+        activeTasks: activeTasks || [],
+        completedTasks: completedTasks || []
+      };
+    } catch (err) {
+      console.error('[TaskService] Error querying tasks/offers:', err.message);
+      return {
+        pendingOffers: [],
+        activeTasks: [],
+        completedTasks: []
+      };
+    }
   }
 }
 

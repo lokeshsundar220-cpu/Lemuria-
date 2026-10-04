@@ -57,8 +57,8 @@ export const TaskOfferModal: React.FC<TaskOfferModalProps> = ({
   const deptDisplay = (task.department || 'OPERATIONS').toUpperCase();
 
   return (
-    <div className="ov" id="task-offer-overlay">
-      <div className="mod offer" id="task-offer-modal" style={{ maxWidth: '480px' }}>
+    <div className="ov" id="task-offer-overlay" style={{ zIndex: 100 }}>
+      <div className="mod offer" id="task-offer-modal" style={{ maxWidth: '480px', zIndex: 101 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
           <span style={{ fontSize: '20px' }}>🔔</span>
           <span className="gold" style={{ letterSpacing: '2px', fontWeight: 800, fontSize: '15px', textTransform: 'uppercase' }}>

@@ -200,6 +200,21 @@ export const App: React.FC = () => {
 
   const seenOfferIdsRef = useRef<Set<string>>(new Set());
 
+  // Safe wrapper to prevent any single API failure from crashing the entire polling cycle
+  const safePoll = useCallback(async <T,>(fn: () => Promise<T>, fallback: T, name: string): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const error = err as { message?: string; status?: number };
+      console.warn(
+        `[Polling] ${name} FAILED:`,
+        error?.message || err,
+        error?.status ? `(HTTP ${error.status})` : ''
+      );
+      return fallback;
+    }
+  }, []);
+
   // Periodic polling for task offers, emergencies, notifications, staff status, and task status
   useEffect(() => {
     if (!auth) return;
@@ -207,65 +222,70 @@ export const App: React.FC = () => {
     let isSubscribed = true;
 
     const poll = async () => {
-      try {
-        // 1. Poll personal task offers & my active assignments
-        const myData = await api.fetchMyTasksAndOffers();
-        if (!isSubscribed) return;
+      if (!isSubscribed) return;
 
-        const now = Date.now();
-        const validOffers = (myData.pendingOffers || []).filter((o) => o.expiresAt > now);
+      // 1. Fetch personal task offers & my active assignments independently
+      const myData = await safePoll(
+        () => api.fetchMyTasksAndOffers(),
+        { pendingOffers: [], activeTasks: [], completedTasks: [] },
+        'fetchMyTasksAndOffers'
+      );
+      if (!isSubscribed) return;
 
-        let hasNewOffer = false;
-        for (const off of validOffers) {
-          if (!seenOfferIdsRef.current.has(off.id)) {
-            seenOfferIdsRef.current.add(off.id);
-            hasNewOffer = true;
+      const now = Date.now();
+      const validOffers = (myData.pendingOffers || []).filter((o) => o.expiresAt > now);
+
+      let hasNewOffer = false;
+      for (const off of validOffers) {
+        if (!seenOfferIdsRef.current.has(off.id)) {
+          seenOfferIdsRef.current.add(off.id);
+          hasNewOffer = true;
+        }
+      }
+
+      if (hasNewOffer) {
+        beep();
+      }
+
+      setOffers(validOffers);
+
+      // 2. Fetch tasks, notifications, emergencies, rooms, and staff independently
+      const [latestTasks, latestNotes, latestEmg, latestRooms, latestStaff] = await Promise.all([
+        safePoll(() => api.fetchTasks(), [] as TaskItem[], 'fetchTasks'),
+        safePoll(() => api.fetchNotifications(), [] as NotificationItem[], 'fetchNotifications'),
+        safePoll(() => api.fetchActiveEmergencies(), [] as EmergencyItem[], 'fetchActiveEmergencies'),
+        safePoll(() => api.fetchRooms(), [] as RoomItem[], 'fetchRooms'),
+        safePoll(() => api.fetchAllStaff(), [] as StaffMember[], 'fetchAllStaff')
+      ]);
+
+      if (!isSubscribed) return;
+
+      console.log(`[Polling] tasks fetched: ${latestTasks.length} | offers fetched: ${validOffers.length}`);
+
+      // Always update task list independently
+      setTasks(latestTasks);
+      setNotes(latestNotes);
+      setEmergencies(latestEmg);
+      if (latestRooms.length > 0) setRooms(latestRooms);
+      if (latestStaff.length > 0) {
+        setStaff(latestStaff);
+        // Sync current staff availability / currentTaskId in case of manager assignment
+        setCurrentStaff((prev) => {
+          if (!prev) return prev;
+          const me = latestStaff.find(
+            (s) => s.id === prev.id || s._id === prev._id || s.staffCode === prev.staffCode
+          );
+          if (me && (me.availability !== prev.availability || me.duty !== prev.duty || me.currentTaskId !== prev.currentTaskId)) {
+            return {
+              ...prev,
+              availability: me.availability,
+              duty: me.duty,
+              dutyStatus: me.dutyStatus,
+              currentTaskId: me.currentTaskId
+            };
           }
-        }
-
-        if (hasNewOffer) {
-          beep();
-        }
-
-        setOffers(validOffers);
-
-        // 2. Poll notifications, emergencies, tasks, rooms, staff
-        const [latestNotes, latestEmg, latestTasks, latestRooms, latestStaff] = await Promise.all([
-          api.fetchNotifications().catch(() => []),
-          api.fetchActiveEmergencies().catch(() => []),
-          api.fetchTasks().catch(() => []),
-          api.fetchRooms().catch(() => []),
-          api.fetchAllStaff().catch(() => [])
-        ]);
-
-        if (!isSubscribed) return;
-
-        setNotes(latestNotes);
-        setEmergencies(latestEmg);
-        setTasks(latestTasks);
-        if (latestRooms.length > 0) setRooms(latestRooms);
-        if (latestStaff.length > 0) {
-          setStaff(latestStaff);
-          // Sync current staff availability / currentTaskId in case of manager assignment
-          setCurrentStaff((prev) => {
-            if (!prev) return prev;
-            const me = latestStaff.find(
-              (s) => s.id === prev.id || s._id === prev._id || s.staffCode === prev.staffCode
-            );
-            if (me && (me.availability !== prev.availability || me.duty !== prev.duty || me.currentTaskId !== prev.currentTaskId)) {
-              return {
-                ...prev,
-                availability: me.availability,
-                duty: me.duty,
-                dutyStatus: me.dutyStatus,
-                currentTaskId: me.currentTaskId
-              };
-            }
-            return prev;
-          });
-        }
-      } catch {
-        // Silently handle transient network polling hiccup
+          return prev;
+        });
       }
     };
 
@@ -279,7 +299,7 @@ export const App: React.FC = () => {
       isSubscribed = false;
       clearInterval(interval);
     };
-  }, [auth]);
+  }, [auth, safePoll]);
 
   // Actions
   const handlePickDepartment = (dept: string) => {
@@ -986,7 +1006,7 @@ export const App: React.FC = () => {
       />
 
       {/* 15-Second Task Offer Modal */}
-      {activeOffer && offeredTask && !activeModal && (
+      {activeOffer && offeredTask && (
         <TaskOfferModal
           task={offeredTask}
           offer={activeOffer}

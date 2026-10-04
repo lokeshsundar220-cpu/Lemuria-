@@ -18,7 +18,10 @@ router.post('/offers/:offerId/timeout', taskController.timeoutOffer);
 
 // Task assignment & execution
 router.post('/:id/assign', taskController.assignTask);
+router.put('/:id/assign', taskController.assignTask);
 router.post('/:id/start', taskController.startTask);
+router.put('/:id/start', taskController.startTask);
 router.post('/:id/complete', taskController.completeTask);
+router.put('/:id/complete', taskController.completeTask);
 
 module.exports = router;

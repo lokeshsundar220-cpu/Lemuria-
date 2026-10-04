@@ -44,7 +44,11 @@ interface OperationsPageProps {
   }[];
   allStaff: {
     id: string;
+    _id?: string;
+    staffCode?: string;
     name: string;
+    fullName?: string;
+    department?: string;
   }[];
   managerBoardDept: string;
   busy: boolean;

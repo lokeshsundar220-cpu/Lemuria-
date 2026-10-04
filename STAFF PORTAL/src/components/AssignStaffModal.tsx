@@ -18,6 +18,7 @@ interface AssignStaffModalProps {
     id: string;
     _id?: string;
     staffCode?: string;
+    staffId?: string;
     name: string;
     fullName?: string;
     department: string;
