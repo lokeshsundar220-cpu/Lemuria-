@@ -11,6 +11,7 @@ import { EditStaffModal } from './components/EditStaffModal';
 import { AddFeedbackModal } from './components/AddFeedbackModal';
 import { EmergencyModal } from './components/EmergencyModal';
 import { VerifyGuestModal } from './components/VerifyGuestModal';
+import { AssignStaffModal } from './components/AssignStaffModal';
 
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
@@ -90,6 +91,7 @@ export const App: React.FC = () => {
     | { type: 'em' }
     | { type: 'detail'; id: string }
     | { type: 'verify'; id: string }
+    | { type: 'assignStaff'; id: string }
   >(null);
 
   // Entities state from real backend
@@ -196,26 +198,38 @@ export const App: React.FC = () => {
     initSession();
   }, [loadBackendData]);
 
+  const seenOfferIdsRef = useRef<Set<string>>(new Set());
+
   // Periodic polling for task offers, emergencies, notifications, staff status, and task status
   useEffect(() => {
     if (!auth) return;
-    const interval = setInterval(async () => {
+
+    let isSubscribed = true;
+
+    const poll = async () => {
       try {
-        // Poll personal task offers
+        // 1. Poll personal task offers & my active assignments
         const myData = await api.fetchMyTasksAndOffers();
-        if (myData.pendingOffers && myData.pendingOffers.length > 0) {
-          setOffers((prevOffers) => {
-            const isNew = myData.pendingOffers.some(
-              (no) => !prevOffers.some((po) => po.id === no.id)
-            );
-            if (isNew) beep();
-            return myData.pendingOffers;
-          });
-        } else {
-          setOffers([]);
+        if (!isSubscribed) return;
+
+        const now = Date.now();
+        const validOffers = (myData.pendingOffers || []).filter((o) => o.expiresAt > now);
+
+        let hasNewOffer = false;
+        for (const off of validOffers) {
+          if (!seenOfferIdsRef.current.has(off.id)) {
+            seenOfferIdsRef.current.add(off.id);
+            hasNewOffer = true;
+          }
         }
 
-        // Poll notifications, emergencies, tasks, rooms, staff
+        if (hasNewOffer) {
+          beep();
+        }
+
+        setOffers(validOffers);
+
+        // 2. Poll notifications, emergencies, tasks, rooms, staff
         const [latestNotes, latestEmg, latestTasks, latestRooms, latestStaff] = await Promise.all([
           api.fetchNotifications().catch(() => []),
           api.fetchActiveEmergencies().catch(() => []),
@@ -224,17 +238,47 @@ export const App: React.FC = () => {
           api.fetchAllStaff().catch(() => [])
         ]);
 
-        if (latestNotes.length > 0) setNotes(latestNotes);
+        if (!isSubscribed) return;
+
+        setNotes(latestNotes);
         setEmergencies(latestEmg);
-        if (latestTasks.length > 0) setTasks(latestTasks);
+        setTasks(latestTasks);
         if (latestRooms.length > 0) setRooms(latestRooms);
-        if (latestStaff.length > 0) setStaff(latestStaff);
+        if (latestStaff.length > 0) {
+          setStaff(latestStaff);
+          // Sync current staff availability / currentTaskId in case of manager assignment
+          setCurrentStaff((prev) => {
+            if (!prev) return prev;
+            const me = latestStaff.find(
+              (s) => s.id === prev.id || s._id === prev._id || s.staffCode === prev.staffCode
+            );
+            if (me && (me.availability !== prev.availability || me.duty !== prev.duty || me.currentTaskId !== prev.currentTaskId)) {
+              return {
+                ...prev,
+                availability: me.availability,
+                duty: me.duty,
+                dutyStatus: me.dutyStatus,
+                currentTaskId: me.currentTaskId
+              };
+            }
+            return prev;
+          });
+        }
       } catch {
         // Silently handle transient network polling hiccup
       }
-    }, 3000);
+    };
 
-    return () => clearInterval(interval);
+    // Initial poll immediately
+    poll();
+
+    // 2-second interval for responsive real-time experience
+    const interval = setInterval(poll, 2000);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
   }, [auth]);
 
   // Actions
@@ -678,6 +722,22 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleAssignStaff = async (taskId: string, staffId: string) => {
+    setBusy(true);
+    setBusyMsg('Assigning task to staff…');
+    try {
+      await api.assignTask(taskId, staffId);
+      setActiveModal(null);
+      showToast('Task successfully assigned to staff member.');
+      await loadBackendData();
+    } catch (err: unknown) {
+      showToast('Failed to assign task: ' + (err as Error).message);
+    } finally {
+      setBusy(false);
+      setBusyMsg('');
+    }
+  };
+
   const handleReadAllNotes = async () => {
     try {
       await api.markAllNotificationsRead();
@@ -812,6 +872,7 @@ export const App: React.FC = () => {
               onCompleteTask={(id) => setActiveModal({ type: 'done', id })}
               onAckEmergency={handleAckEmergency}
               onAssignEmergency={handleAssignEmergency}
+              onOpenAssignStaff={(t) => setActiveModal({ type: 'assignStaff', id: t.id || t._id })}
               onOpenEmergencyDetail={(id) => setActiveModal({ type: 'detail', id })}
               onOpenVerifyModal={(id) => setActiveModal({ type: 'verify', id })}
               onSetManagerBoardDept={(d) => setManagerBoardDept(d)}
@@ -832,6 +893,7 @@ export const App: React.FC = () => {
               onTaskClick={(id) => setActiveModal({ type: 'detail', id })}
               onStartTask={handleStartTask}
               onCompleteTask={(id) => setActiveModal({ type: 'done', id })}
+              onOpenAssignStaff={(t) => setActiveModal({ type: 'assignStaff', id: t.id || t._id })}
               onCheckout={handleCheckout}
               onOpenVerifyModal={(id) => setActiveModal({ type: 'verify', id })}
               onSetManagerBoardDept={(d) => setManagerBoardDept(d)}
@@ -1012,6 +1074,17 @@ export const App: React.FC = () => {
           onToggleCheck={(key) => handleToggleArrivalCheck(activeModal.id, key)}
           onClose={() => setActiveModal(null)}
           onConfirm={() => handleVerifyIn(activeModal.id)}
+        />
+      )}
+
+      {activeModal?.type === 'assignStaff' && (
+        <AssignStaffModal
+          task={tasks.find((t) => t.id === activeModal.id || t._id === activeModal.id) || { id: activeModal.id, type: 'Task', department: 'housekeeping', priority: 'HIGH', description: '' }}
+          allStaff={staff}
+          deptMap={DEPARTMENTS}
+          busy={busy}
+          onClose={() => setActiveModal(null)}
+          onAssign={handleAssignStaff}
         />
       )}
 

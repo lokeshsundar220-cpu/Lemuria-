@@ -39,12 +39,14 @@ const createServiceRequest = async (req, res, next) => {
       status: 'OPEN'
     });
 
-    if (['HOUSEKEEPING', 'MAINTENANCE', 'FNB', 'FOOD_AND_BEVERAGE'].includes(department)) {
+    const normalizedDept = (department || '').toUpperCase().trim();
+    if (['HOUSEKEEPING', 'MAINTENANCE', 'FNB', 'FOOD_AND_BEVERAGE'].includes(normalizedDept)) {
+      const taskDept = (normalizedDept === 'FOOD_AND_BEVERAGE') ? 'FNB' : normalizedDept;
       const task = await taskService.createTask(
         {
           title: `Guest Service: ${serviceType || department}`,
           description,
-          department,
+          department: taskDept,
           priority: 'HIGH',
           hotelId: activeStay.hotelId,
           roomId: activeStay.roomId,

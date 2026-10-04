@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Pill } from '../components/Pill';
 
 interface DashboardPageProps {
@@ -29,6 +29,7 @@ interface DashboardPageProps {
     guestRequest: string;
     status: string;
     offerStatus: string;
+    assignmentState?: string;
     assignedStaffId: string | null;
     createdAt: number;
     startedAt: number | null;
@@ -86,6 +87,7 @@ interface DashboardPageProps {
   onCompleteTask: (id: string) => void;
   onAckEmergency: (id: string) => void;
   onAssignEmergency: (id: string) => void;
+  onOpenAssignStaff?: (task: any) => void;
   onOpenEmergencyDetail: (id: string) => void;
   onOpenVerifyModal: (id: string) => void;
   onSetManagerBoardDept: (dept: string) => void;
@@ -113,32 +115,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onCompleteTask,
   onAckEmergency,
   onAssignEmergency,
+  onOpenAssignStaff,
   onOpenEmergencyDetail,
   onOpenVerifyModal,
   onSetManagerBoardDept
 }) => {
-  const metricsRef = useRef<HTMLDivElement>(null);
   const isReception = staff.department === 'reception';
   const isDisp = ['housekeeping', 'maintenance', 'fnb'].includes(staff.department);
   const on = staff.duty === 'ON';
-
-  useEffect(() => {
-    if (!metricsRef.current) return;
-    const elements = metricsRef.current.querySelectorAll<HTMLElement>('.met b');
-    elements.forEach((e) => {
-      const raw = e.textContent || '';
-      const num = parseFloat(raw);
-      if (isNaN(num)) return;
-      const suf = raw.replace(/[\d.]/g, '');
-      const t0 = performance.now();
-      const frame = (now: number) => {
-        const progress = Math.min(1, (now - t0) / 750);
-        e.textContent = Math.round(num * (1 - Math.pow(1 - progress, 3))) + suf;
-        if (progress < 1) requestAnimationFrame(frame);
-      };
-      requestAnimationFrame(frame);
-    });
-  }, [staff.department]);
 
   const getGreeting = () => {
     const hr = new Date().getHours();
@@ -162,7 +146,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ['Tasks Dispatched', deptTasks.length],
       [
         'Pending Tasks',
-        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED').length,
+        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED').length,
         '--o'
       ],
       ['Active Cleaning', deptTasks.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length, '--bl'],
@@ -185,7 +169,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ['Total Work Orders', deptTasks.length],
       [
         'Pending Repairs',
-        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED').length,
+        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED').length,
         '--o'
       ],
       ['Active Work', deptTasks.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length, '--cy'],
@@ -207,7 +191,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ['Orders Received', deptTasks.length],
       [
         'Pending Orders',
-        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED').length,
+        deptTasks.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED').length,
         '--o'
       ],
       ['Preparing / Delivery', deptTasks.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS').length, '--bl'],
@@ -274,8 +258,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const renderTaskCard = (t: typeof tasks[0], canAct: boolean) => {
     const assignedStaff = allStaff.find((x) => x.id === t.assignedStaffId);
-    const st = t.status === 'PENDING' && t.offerStatus === 'OFFERED' ? 'OFFERING' : t.status;
+    const isAccepted = t.status === 'ACCEPTED';
+    const isInProgress = t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS';
+    const isCompleted = t.status === 'COMPLETED';
+    const st = isAccepted ? 'ACCEPTED' : isInProgress ? 'IN PROGRESS' : isCompleted ? 'COMPLETED' : 'PENDING';
     const elapsedMinutes = t.startedAt ? Math.floor((Date.now() - t.startedAt) / 60000) : 0;
+    const isManagerRole = staff.department === 'manager' || staff.department === 'MANAGER';
 
     return (
       <div
@@ -298,13 +286,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             {assignedStaff ? assignedStaff.name : 'Unassigned'}
           </span>
         </div>
+
+        {t.assignmentState === 'NEEDS_MANAGER' && !t.assignedStaffId ? (
+          <div
+            style={{
+              background: 'rgba(212, 175, 55, 0.12)',
+              border: '1px solid rgba(212, 175, 55, 0.4)',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '11.5px',
+              color: 'var(--gd)',
+              margin: '6px 0',
+              fontWeight: 600
+            }}
+          >
+            TASK REQUIRES MANUAL ASSIGNMENT
+          </div>
+        ) : null}
+
         {t.status === 'IN PROGRESS' && t.startedAt ? (
           <div className="mu" style={{ fontSize: '12px' }}>
             Elapsed: <b>{elapsedMinutes} min</b> · Expected ~
             {fmt(t.startedAt + t.estimatedDuration * 60000)}
           </div>
         ) : null}
-        {canAct && t.status === 'ACCEPTED' ? (
+
+        {canAct && isAccepted ? (
           <div style={{ marginTop: '10px' }}>
             <button
               className="btn sm"
@@ -313,11 +320,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 onStartTask(t.id);
               }}
             >
-              START TASK
+              ▶ START TASK
             </button>
           </div>
         ) : null}
-        {canAct && t.status === 'IN PROGRESS' ? (
+
+        {canAct && isInProgress ? (
           <div style={{ marginTop: '10px' }}>
             <button
               className="btn sm"
@@ -326,7 +334,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 onCompleteTask(t.id);
               }}
             >
-              COMPLETE TASK
+              ✓ COMPLETE TASK
+            </button>
+          </div>
+        ) : null}
+
+        {isManagerRole && !t.assignedStaffId && onOpenAssignStaff ? (
+          <div style={{ marginTop: '10px' }}>
+            <button
+              className="btn sm gd"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenAssignStaff(t);
+              }}
+            >
+              ASSIGN STAFF
             </button>
           </div>
         ) : null}
@@ -336,7 +358,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const renderBoard = (dept: string, viewerWorker: boolean) => {
     const list = tasks.filter((t) => (t.department || '').toLowerCase() === dept.toLowerCase());
-    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED');
+    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED');
     const ip = list.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS');
     const dn = list.filter((t) => t.status === 'COMPLETED');
 
@@ -485,7 +507,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ))}
 
       {/* Metrics Grid */}
-      <div className="grid g4" ref={metricsRef}>
+      <div className="grid g4">
         {metrics.map(([label, val, colVar]) => (
           <div
             key={label}

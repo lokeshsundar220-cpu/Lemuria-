@@ -28,8 +28,19 @@ const getTasks = async (req, res, next) => {
     const hotelId = req.staff ? (req.staff.hotelId?._id || req.staff.hotelId) : req.query.hotelId;
     const { category, department, status, priority } = req.query;
 
-    const query = { hotelId };
-    if (category || department) query.department = category || department;
+    const query = {};
+    if (hotelId) {
+      query.$or = [{ hotelId }, { hotel: hotelId }];
+    }
+    if (category || department) {
+      const d = (category || department).trim();
+      const dUpper = d.toUpperCase();
+      if (dUpper === 'FNB' || dUpper === 'FOOD_AND_BEVERAGE') {
+        query.department = { $in: ['FNB', 'FOOD_AND_BEVERAGE', 'fnb', 'food_and_beverage'] };
+      } else {
+        query.department = { $in: [d, d.toLowerCase(), d.toUpperCase(), d.charAt(0).toUpperCase() + d.slice(1).toLowerCase()] };
+      }
+    }
     if (status) query.status = status;
     if (priority) query.priority = priority;
 
@@ -111,6 +122,20 @@ const timeoutOffer = async (req, res, next) => {
   }
 };
 
+const assignTask = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { staffId } = req.body;
+    const managerStaffId = req.staff ? req.staff._id : null;
+    if (!staffId) return errorResponse(res, 400, 'staffId is required');
+
+    const task = await taskService.assignTask(id, staffId, managerStaffId);
+    return successResponse(res, 200, 'Task successfully assigned to staff member', task);
+  } catch (error) {
+    return errorResponse(res, 400, error.message);
+  }
+};
+
 module.exports = {
   createTask,
   getTasks,
@@ -118,6 +143,7 @@ module.exports = {
   acceptOffer,
   declineOffer,
   timeoutOffer,
+  assignTask,
   startTask,
   completeTask
 };

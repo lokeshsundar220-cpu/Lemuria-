@@ -76,6 +76,11 @@ const taskSchema = new mongoose.Schema(
       enum: ['NONE', 'OFFERED', 'ACCEPTED', 'EXPIRED'],
       default: 'NONE'
     },
+    assignmentState: {
+      type: String,
+      enum: ['AUTO', 'NEEDS_MANAGER', 'ASSIGNED'],
+      default: 'AUTO'
+    },
     offeredTo: [
       {
         type: mongoose.Schema.Types.ObjectId,

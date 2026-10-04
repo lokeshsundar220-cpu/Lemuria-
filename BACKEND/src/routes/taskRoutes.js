@@ -16,7 +16,8 @@ router.post('/offers/:offerId/accept', taskController.acceptOffer);
 router.post('/offers/:offerId/decline', taskController.declineOffer);
 router.post('/offers/:offerId/timeout', taskController.timeoutOffer);
 
-// Task execution
+// Task assignment & execution
+router.post('/:id/assign', taskController.assignTask);
 router.post('/:id/start', taskController.startTask);
 router.post('/:id/complete', taskController.completeTask);
 

@@ -19,6 +19,7 @@ interface OperationsPageProps {
     description: string;
     status: string;
     offerStatus: string;
+    assignmentState?: string;
     assignedStaffId: string | null;
     createdAt: number;
     startedAt: number | null;
@@ -51,6 +52,7 @@ interface OperationsPageProps {
   onTaskClick: (id: string) => void;
   onStartTask: (id: string) => void;
   onCompleteTask: (id: string) => void;
+  onOpenAssignStaff?: (task: any) => void;
   onCheckout: (roomId: string) => void;
   onOpenVerifyModal: (id: string) => void;
   onSetManagerBoardDept: (dept: string) => void;
@@ -72,17 +74,22 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
   onTaskClick,
   onStartTask,
   onCompleteTask,
+  onOpenAssignStaff,
   onCheckout,
   onOpenVerifyModal,
   onSetManagerBoardDept
 }) => {
   const isReception = staff.department === 'reception';
   const isDisp = ['housekeeping', 'maintenance', 'fnb'].includes(staff.department);
+  const isManagerRole = staff.department === 'manager' || staff.department === 'MANAGER';
   const on = staff.duty === 'ON';
 
   const renderTaskCard = (t: typeof tasks[0], canAct: boolean) => {
-    const assignedStaff = allStaff.find((x) => x.id === t.assignedStaffId);
-    const st = t.status === 'PENDING' && t.offerStatus === 'OFFERED' ? 'OFFERING' : t.status;
+    const assignedStaff = allStaff.find((x) => x.id === t.assignedStaffId || x._id === t.assignedStaffId || x.staffCode === t.assignedStaffId);
+    const isAccepted = t.status === 'ACCEPTED';
+    const isInProgress = t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS';
+    const isCompleted = t.status === 'COMPLETED';
+    const st = isAccepted ? 'ACCEPTED' : isInProgress ? 'IN PROGRESS' : isCompleted ? 'COMPLETED' : 'PENDING';
     const elapsedMinutes = t.startedAt ? Math.floor((Date.now() - t.startedAt) / 60000) : 0;
 
     return (
@@ -106,13 +113,32 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
             {assignedStaff ? assignedStaff.name : 'Unassigned'}
           </span>
         </div>
+
+        {t.assignmentState === 'NEEDS_MANAGER' && !t.assignedStaffId ? (
+          <div
+            style={{
+              background: 'rgba(212, 175, 55, 0.12)',
+              border: '1px solid rgba(212, 175, 55, 0.4)',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '11.5px',
+              color: 'var(--gd)',
+              margin: '6px 0',
+              fontWeight: 600
+            }}
+          >
+            TASK REQUIRES MANUAL ASSIGNMENT
+          </div>
+        ) : null}
+
         {t.status === 'IN PROGRESS' && t.startedAt ? (
           <div className="mu" style={{ fontSize: '12px' }}>
             Elapsed: <b>{elapsedMinutes} min</b> · Expected ~
             {fmt(t.startedAt + t.estimatedDuration * 60000)}
           </div>
         ) : null}
-        {canAct && t.status === 'ACCEPTED' ? (
+
+        {canAct && isAccepted ? (
           <div style={{ marginTop: '10px' }}>
             <button
               className="btn sm"
@@ -121,11 +147,12 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
                 onStartTask(t.id);
               }}
             >
-              START TASK
+              ▶ START TASK
             </button>
           </div>
         ) : null}
-        {canAct && t.status === 'IN PROGRESS' ? (
+
+        {canAct && isInProgress ? (
           <div style={{ marginTop: '10px' }}>
             <button
               className="btn sm"
@@ -134,7 +161,21 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
                 onCompleteTask(t.id);
               }}
             >
-              COMPLETE TASK
+              ✓ COMPLETE TASK
+            </button>
+          </div>
+        ) : null}
+
+        {isManagerRole && !t.assignedStaffId && onOpenAssignStaff ? (
+          <div style={{ marginTop: '10px' }}>
+            <button
+              className="btn sm gd"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenAssignStaff(t);
+              }}
+            >
+              ASSIGN STAFF
             </button>
           </div>
         ) : null}
@@ -144,12 +185,19 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
 
   const renderBoard = (dept: string, viewerWorker: boolean) => {
     const list = tasks.filter((t) => (t.department || '').toLowerCase() === dept.toLowerCase());
-    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED' || t.status === 'ESCALATED');
+    const pen = list.filter((t) => t.status === 'PENDING' || t.status === 'OFFERED' || t.status === 'ACCEPTED');
     const ip = list.filter((t) => t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS');
     const dn = list.filter((t) => t.status === 'COMPLETED');
 
+    const isMine = (t: typeof tasks[0]) =>
+      !t.assignedStaffId ||
+      t.assignedStaffId === staff.id ||
+      t.assignedStaffId === (staff as any).staffCode ||
+      t.assignedStaffId === (staff as any).staffId ||
+      t.assignedStaffId === (staff as any)._id;
+
     const filterWorker = (arr: typeof list) =>
-      viewerWorker ? arr.filter((t) => !t.assignedStaffId || t.assignedStaffId === staff.id) : arr;
+      viewerWorker ? arr.filter(isMine) : arr;
 
     const filteredPen = filterWorker(pen);
     const filteredIp = filterWorker(ip);
@@ -164,7 +212,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
           </h3>
           {filteredPen.length > 0 ? (
             filteredPen.map((t) =>
-              renderTaskCard(t, viewerWorker && t.assignedStaffId === staff.id)
+              renderTaskCard(t, viewerWorker && isMine(t) && !!t.assignedStaffId)
             )
           ) : (
             <div className="empty">

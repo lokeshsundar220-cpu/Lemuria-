@@ -83,6 +83,7 @@ export interface TaskItem {
   assignedStaffId: string | null;
   assignedStaffName?: string;
   offerStatus: string;
+  assignmentState?: string;
   declined: string[];
   createdAt: number;
   acceptedAt: number | null;
@@ -334,6 +335,7 @@ export async function fetchTasks(department?: string): Promise<TaskItem[]> {
     assignedStaffId: t.assignedStaffId?.staffCode || t.assignedStaffId?._id || (t.assignedStaffId ? String(t.assignedStaffId) : null),
     assignedStaffName: t.assignedStaffId?.name || t.assignedStaffName || '',
     offerStatus: t.offerStatus || (t.status === 'OFFERED' ? 'OFFERED' : 'NONE'),
+    assignmentState: t.assignmentState || 'AUTO',
     declined: (t.offeredTo || []).map((s: any) => s.staffCode || s._id || String(s)),
     createdAt: new Date(t.createdAt).getTime(),
     acceptedAt: t.acceptedAt ? new Date(t.acceptedAt).getTime() : null,
@@ -373,6 +375,7 @@ export async function fetchMyTasksAndOffers(): Promise<{
     assignedStaffId: t.assignedStaffId?.staffCode || t.assignedStaffId?._id || (t.assignedStaffId ? String(t.assignedStaffId) : null),
     assignedStaffName: t.assignedStaffId?.name || t.assignedStaffName || '',
     offerStatus: t.offerStatus || 'NONE',
+    assignmentState: t.assignmentState || 'AUTO',
     declined: [],
     createdAt: new Date(t.createdAt).getTime(),
     acceptedAt: t.acceptedAt ? new Date(t.acceptedAt).getTime() : null,
@@ -455,6 +458,13 @@ export async function declineTaskOffer(offerId: string): Promise<any> {
 
 export async function timeoutTaskOffer(offerId: string): Promise<any> {
   return await request<any>(`/tasks/offers/${offerId}/timeout`, { method: 'POST' });
+}
+
+export async function assignTask(taskId: string, staffId: string): Promise<any> {
+  return await request<any>(`/tasks/${taskId}/assign`, {
+    method: 'POST',
+    body: JSON.stringify({ staffId })
+  });
 }
 
 export async function startTask(taskId: string): Promise<any> {

@@ -69,9 +69,13 @@ export const TasksPage: React.FC<TasksPageProps> = ({
                   <td>
                     <Pill
                       label={
-                        t.status === 'PENDING' && t.offerStatus === 'OFFERED'
-                          ? 'OFFERING'
-                          : t.status
+                        t.status === 'ACCEPTED'
+                          ? 'ACCEPTED'
+                          : t.status === 'IN PROGRESS' || t.status === 'IN_PROGRESS'
+                          ? 'IN PROGRESS'
+                          : t.status === 'COMPLETED'
+                          ? 'COMPLETED'
+                          : 'PENDING'
                       }
                     />
                   </td>
