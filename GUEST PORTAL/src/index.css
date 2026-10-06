@@ -1,16 +1,16 @@
 :root {
-  --navy: #071A2B;
+  --navy: #0e3052;
   --blue: #2563EB;
   --gold: #D4A84F;
-  --ivory: #F7F4ED;
+  --ivory: #faf8f5;
   --white: #fff;
   --green: #10B981;
   --amber: #F59E0B;
   --red: #EF4444;
   --purple: #7C3AED;
-  --ink: #12283b;
-  --mute: #5d6e7e;
-  --line: #e6dfcf;
+  --ink: #1e2e42;
+  --mute: #61758a;
+  --line: #e3decb;
   --serif: 'Cormorant Garamond', Georgia, serif;
   --sans: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
   box-sizing: border-box;
@@ -189,7 +189,7 @@ main.wide {
 }
 
 .hero {
-  background: linear-gradient(180deg, #0a2540, var(--navy));
+  background: linear-gradient(180deg, #184674, var(--navy));
   color: #fff;
   position: relative;
   overflow: hidden;
@@ -1093,7 +1093,7 @@ footer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(135deg, #0f2b46, #071A2B);
+  background: linear-gradient(135deg, #163d63, #0e3052);
   color: #f7e1a0;
   border: 1px solid rgba(212, 168, 79, 0.4);
   padding: 8px 16px;
@@ -1109,7 +1109,7 @@ footer {
 
 /* Active Stay Card */
 .stay-card {
-  background: linear-gradient(145deg, #071A2B 0%, #0c2b48 60%, #103456 100%);
+  background: linear-gradient(145deg, #103456 0%, #164673 60%, #1a5286 100%);
   color: #fff;
   border-radius: 22px;
   padding: 26px 28px;
@@ -2159,7 +2159,7 @@ footer {
    ========================================================================== */
 
 .svc-page-hero {
-  background: linear-gradient(135deg, #071A2B 0%, #0f3050 100%);
+  background: linear-gradient(135deg, #103456 0%, #184c7e 100%);
   color: #fff;
   border-radius: 20px;
   padding: 36px 28px;
