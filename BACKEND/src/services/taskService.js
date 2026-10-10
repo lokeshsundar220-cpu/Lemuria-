@@ -305,6 +305,13 @@ class TaskService {
     if (!staff) {
       throw new Error('Staff member not found');
     }
+
+    const isMgr = staff.department === 'manager' || staff.role === 'MANAGER';
+    const duty = (staff.duty || staff.dutyStatus || '').toUpperCase();
+    if (!isMgr && duty !== 'ON_DUTY' && duty !== 'ON') {
+      throw new Error('Cannot accept task offer while OFF_DUTY. Please start duty first.');
+    }
+
     if (staff.availability === 'BUSY' || staff.currentTaskId) {
       throw new Error('You are currently BUSY with another task');
     }
@@ -558,8 +565,17 @@ class TaskService {
     const task = await findTaskDoc(taskId);
     if (!task) throw new Error('Task not found');
 
+    const staff = await findStaffDoc(staffId);
+    if (!staff) throw new Error('Staff member not found');
+
+    const isMgr = staff.department === 'manager' || staff.role === 'MANAGER';
+    const duty = (staff.duty || staff.dutyStatus || '').toUpperCase();
+    if (!isMgr && duty !== 'ON_DUTY' && duty !== 'ON') {
+      throw new Error('Cannot start task while OFF_DUTY. Please start duty first.');
+    }
+
     const assigned = task.assignedStaffId || task.assignedStaff;
-    if (assigned && assigned.toString() !== staffId.toString()) {
+    if (assigned && assigned.toString() !== staff._id.toString()) {
       throw new Error('You are not assigned to this task');
     }
 
@@ -594,8 +610,17 @@ class TaskService {
     const task = await findTaskDoc(taskId);
     if (!task) throw new Error('Task not found');
 
+    const staff = await findStaffDoc(staffId);
+    if (!staff) throw new Error('Staff member not found');
+
+    const isMgr = staff.department === 'manager' || staff.role === 'MANAGER';
+    const duty = (staff.duty || staff.dutyStatus || '').toUpperCase();
+    if (!isMgr && duty !== 'ON_DUTY' && duty !== 'ON') {
+      throw new Error('Cannot complete task while OFF_DUTY. Please start duty first.');
+    }
+
     const assigned = task.assignedStaffId || task.assignedStaff;
-    if (assigned && assigned.toString() !== staffId.toString()) {
+    if (assigned && assigned.toString() !== staff._id.toString()) {
       throw new Error('You are not assigned to this task');
     }
 
@@ -606,16 +631,13 @@ class TaskService {
     task.proofImageUrl = proof;
     await task.save();
 
-    const staff = await findStaffDoc(staffId);
-    if (staff) {
-      staff.availability = 'AVAILABLE';
-      staff.currentTaskId = null;
-      await staff.save();
+    staff.availability = 'AVAILABLE';
+    staff.currentTaskId = null;
+    await staff.save();
 
-      // Trigger dispatch for waiting pending tasks
-      const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
-      await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
-    }
+    // Trigger dispatch for waiting pending tasks
+    const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
+    await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
 
     const targetRoomId = task.roomId || task.room;
     if (targetRoomId && (task.department === 'HOUSEKEEPING' || task.type === 'CLEANING' || task.category === 'HOUSEKEEPING')) {

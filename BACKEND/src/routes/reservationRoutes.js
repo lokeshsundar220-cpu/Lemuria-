@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const reservationController = require('../controllers/reservationController');
-const { authenticate, authorizeRole, authorizeDepartment } = require('../middleware/auth');
+const { authenticate, authorizeRole, authorizeDepartment, requireOnDuty } = require('../middleware/auth');
 
 router.use(authenticate);
 
@@ -13,7 +13,9 @@ router.post('/:id/request-checkin', authorizeRole('GUEST'), reservationControlle
 // Reception & Manager routes
 const requireReceptionOrManagerForStaff = (req, res, next) => {
   if (req.user?.role === 'STAFF') {
-    return authorizeDepartment('RECEPTION', 'MANAGER')(req, res, next);
+    return authorizeDepartment('RECEPTION', 'MANAGER')(req, res, () => {
+      requireOnDuty(req, res, next);
+    });
   }
   next();
 };

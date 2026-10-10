@@ -115,13 +115,36 @@ const authorizeDepartment = (...allowedDepartments) => {
   };
 };
 
+const authorizeManager = (req, res, next) => {
+  if (!req.staff) {
+    return errorResponse(res, 403, 'Access denied: Staff authorization required');
+  }
+
+  const userDept = normalizeDepartment(req.staff.department);
+  const userRole = (req.staff.role || '').toUpperCase();
+
+  if (userDept === 'manager' || userRole === 'MANAGER') {
+    return next();
+  }
+
+  return errorResponse(res, 403, 'Access denied. Manager role required.');
+};
+
 const requireOnDuty = (req, res, next) => {
   if (!req.staff) {
     return errorResponse(res, 403, 'Staff profile required');
   }
 
-  if (req.staff.duty !== 'ON_DUTY' && req.staff.dutyStatus !== 'ON_DUTY') {
-    return errorResponse(res, 400, 'Staff is currently OFF_DUTY. Please start duty first.');
+  // Managers are exempt from operational duty shift requirements
+  const userDept = normalizeDepartment(req.staff.department);
+  const userRole = (req.staff.role || '').toUpperCase();
+  if (userDept === 'manager' || userRole === 'MANAGER') {
+    return next();
+  }
+
+  const duty = (req.staff.duty || req.staff.dutyStatus || '').toUpperCase();
+  if (duty !== 'ON_DUTY' && duty !== 'ON') {
+    return errorResponse(res, 403, 'Staff is currently OFF_DUTY. Please start duty first.');
   }
 
   next();
@@ -131,5 +154,6 @@ module.exports = {
   authenticate,
   authorizeRole,
   authorizeDepartment,
+  authorizeManager,
   requireOnDuty
 };

@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const managerController = require('../controllers/managerController');
-const { authenticate, authorizeRole, authorizeDepartment } = require('../middleware/auth');
+const { authenticate, authorizeRole, authorizeManager } = require('../middleware/auth');
 
 const taskController = require('../controllers/taskController');
 
 router.use(authenticate);
 router.use(authorizeRole('STAFF'));
-router.use(authorizeDepartment('MANAGER'));
+router.use(authorizeManager);
 
 // Staff management
 router.post('/staff', managerController.addStaff);

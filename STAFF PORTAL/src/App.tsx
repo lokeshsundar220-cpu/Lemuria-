@@ -774,10 +774,14 @@ export const App: React.FC = () => {
   };
 
   // Nav Items calculation
+  const isManager =
+    (currentStaff?.department || '').toLowerCase() === 'manager' ||
+    currentStaff?.role === 'MANAGER';
+
   const getNavItems = (): [string, string][] => {
     if (!currentStaff) return [];
-    const d = currentStaff.department;
-    if (d === 'manager') {
+    const d = (currentStaff.department || '').toLowerCase();
+    if (d === 'manager' || isManager) {
       return [
         ['Dashboard', '▦'],
         ['Operations', '◈'],
@@ -809,6 +813,19 @@ export const App: React.FC = () => {
       ['Reports', '▤']
     ];
   };
+
+  const navItems = getNavItems();
+
+  // Guard against direct page state / URL manipulation for non-manager accounts
+  useEffect(() => {
+    if (auth && currentStaff) {
+      const allowedPages = navItems.map(([name]) => name);
+      if (allowedPages.length > 0 && !allowedPages.includes(page)) {
+        showToast('Unauthorized access: You do not have permission to access the Manager workspace.');
+        setPage('Dashboard');
+      }
+    }
+  }, [page, auth, currentStaff, navItems, showToast]);
 
   // Check if there is an active offer for the logged in user
   const activeOffer = offers[0] || null;
@@ -852,8 +869,6 @@ export const App: React.FC = () => {
   }
 
   if (!currentStaff) return null;
-
-  const navItems = getNavItems();
 
   return (
     <div className={currentStaff.department}>
@@ -958,7 +973,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {page === 'Staff' && (
+          {page === 'Staff' && isManager && (
             <StaffManagementPage
               staffList={staff}
               tasks={tasks}
