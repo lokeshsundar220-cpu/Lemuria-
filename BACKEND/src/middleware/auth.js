@@ -29,7 +29,7 @@ const authenticate = async (req, res, next) => {
         return errorResponse(res, 401, 'Staff account no longer exists');
       }
 
-      if (staffProfile.accountStatus === 'DISABLED' || staffProfile.enabled === false) {
+      if (!staffProfile.isEnabled() || staffProfile.accountStatus === 'DISABLED' || staffProfile.accountStatus === 'DELETED' || staffProfile.enabled === false) {
         return errorResponse(res, 403, 'Staff account is disabled. Contact manager.');
       }
       if (staffProfile.accountStatus === 'SUSPENDED') {

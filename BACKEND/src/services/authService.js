@@ -51,11 +51,11 @@ class AuthService {
       throw createAuthError('Invalid staff credentials', 401);
     }
 
-    if (!staff.isEnabled() || staff.accountStatus === 'DISABLED' || staff.accountStatus === 'DELETED') {
-      throw createAuthError('Your staff account is currently disabled. Please contact your manager.', 403);
-    }
     if (staff.accountStatus === 'SUSPENDED') {
       throw createAuthError('Your staff account is currently suspended.', 403);
+    }
+    if (!staff.isEnabled() || staff.accountStatus === 'DISABLED' || staff.accountStatus === 'DELETED') {
+      throw createAuthError('Your staff account is currently disabled. Please contact your manager.', 403);
     }
 
     const isMatch = await staff.comparePassword(pass);

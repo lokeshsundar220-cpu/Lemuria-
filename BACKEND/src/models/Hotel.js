@@ -28,6 +28,11 @@ const hotelSchema = new mongoose.Schema(
       type: String,
       default: 'India'
     },
+    timezone: {
+      type: String,
+      default: 'Asia/Kolkata',
+      trim: true
+    },
     address: {
       type: String,
       required: true

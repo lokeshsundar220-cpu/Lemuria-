@@ -11,7 +11,7 @@ router.get('/availability/:hotelId', roomController.checkAvailability);
 // Room actions
 router.post('/', authenticate, authorizeRole('STAFF'), authorizeDepartment('MANAGER'), roomController.createRoom);
 router.patch('/:id/status', authenticate, authorizeRole('STAFF'), roomController.updateRoomStatus);
-router.post('/:id/approve', authenticate, authorizeRole('STAFF'), requireOnDuty, roomController.approveRoom);
-router.post('/:id/reject', authenticate, authorizeRole('STAFF'), requireOnDuty, roomController.rejectRoom);
+router.post('/:id/approve', authenticate, authorizeRole('STAFF'), authorizeDepartment('MANAGER'), roomController.approveRoom);
+router.post('/:id/reject', authenticate, authorizeRole('STAFF'), authorizeDepartment('MANAGER'), roomController.rejectRoom);
 
 module.exports = router;

@@ -4,8 +4,8 @@ const { successResponse, errorResponse } = require('../utils/response');
 
 const addStaff = async (req, res, next) => {
   try {
-    const { email, password, fullName, name, phone, mobile, department, hotelId } = req.body;
-    const staffHotelId = hotelId || (req.staff?.hotelId?._id || req.staff?.hotelId);
+    const { email, password, fullName, name, phone, mobile, department } = req.body;
+    const staffHotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
 
     if (!email || !password || (!fullName && !name) || !department || !staffHotelId) {
       return errorResponse(res, 400, 'Email, password, name, department, and hotelId are required');
@@ -119,15 +119,21 @@ const updateStaff = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { fullName, name, phone, mobile, department } = req.body;
+    const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
 
     const staff = await Staff.findOne({
-      $or: [
-        { _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
-        { staffCode: id },
-        { staffId: id }
+      $and: [
+        { $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }] },
+        {
+          $or: [
+            { _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
+            { staffCode: id },
+            { staffId: id }
+          ]
+        }
       ]
     });
-    if (!staff) return errorResponse(res, 404, 'Staff not found');
+    if (!staff) return errorResponse(res, 404, 'Staff not found in your hotel property');
 
     if (name || fullName) {
       staff.name = name || fullName;
@@ -153,15 +159,21 @@ const setStaffAccountStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status, enabled } = req.body;
+    const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
 
     const staff = await Staff.findOne({
-      $or: [
-        { _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
-        { staffCode: id },
-        { staffId: id }
+      $and: [
+        { $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }] },
+        {
+          $or: [
+            { _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
+            { staffCode: id },
+            { staffId: id }
+          ]
+        }
       ]
     });
-    if (!staff) return errorResponse(res, 404, 'Staff member not found');
+    if (!staff) return errorResponse(res, 404, 'Staff member not found in your hotel property');
 
     if (status === 'DISABLED' || status === 'DELETED' || status === 'SUSPENDED' || enabled === false) {
       staff.enabled = false;
@@ -193,14 +205,21 @@ const setStaffAccountStatus = async (req, res, next) => {
 const deleteStaff = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
+
     const staff = await Staff.findOne({
-      $or: [
-        { _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
-        { staffCode: id },
-        { staffId: id }
+      $and: [
+        { $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }] },
+        {
+          $or: [
+            { _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null },
+            { staffCode: id },
+            { staffId: id }
+          ]
+        }
       ]
     });
-    if (!staff) return errorResponse(res, 404, 'Staff member not found');
+    if (!staff) return errorResponse(res, 404, 'Staff member not found in your hotel property');
 
     staff.enabled = false;
     staff.accountStatus = 'DELETED';

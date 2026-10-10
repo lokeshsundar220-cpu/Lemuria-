@@ -112,8 +112,14 @@ const updateRoomStatus = async (req, res, next) => {
 const approveRoom = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const room = await Room.findOne({ $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { roomNumber: id }] });
-    if (!room) return errorResponse(res, 404, 'Room not found');
+    const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
+    const room = await Room.findOne({
+      $and: [
+        { $or: [{ hotelId }, { hotel: hotelId }] },
+        { $or: [{ _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { roomNumber: id }] }
+      ]
+    });
+    if (!room) return errorResponse(res, 404, 'Room not found in your hotel property');
 
     room.state = 'READY';
     room.status = 'READY';
@@ -130,8 +136,14 @@ const approveRoom = async (req, res, next) => {
 const rejectRoom = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const room = await Room.findOne({ $or: [{ _id: id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { roomNumber: id }] });
-    if (!room) return errorResponse(res, 404, 'Room not found');
+    const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
+    const room = await Room.findOne({
+      $and: [
+        { $or: [{ hotelId }, { hotel: hotelId }] },
+        { $or: [{ _id: id && id.match(/^[0-9a-fA-F]{24}$/) ? id : null }, { roomNumber: id }] }
+      ]
+    });
+    if (!room) return errorResponse(res, 404, 'Room not found in your hotel property');
 
     room.state = 'CHECKOUT';
     room.status = 'CHECKOUT';

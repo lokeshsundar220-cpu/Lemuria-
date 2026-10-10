@@ -816,6 +816,19 @@ export const App: React.FC = () => {
 
   const navItems = getNavItems();
 
+  // Synchronize initial and ongoing URL hash navigation
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (hash) {
+        setPage(hash);
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
   // Guard against direct page state / URL manipulation for non-manager accounts
   useEffect(() => {
     if (auth && currentStaff) {
@@ -823,6 +836,9 @@ export const App: React.FC = () => {
       if (allowedPages.length > 0 && !allowedPages.includes(page)) {
         showToast('Unauthorized access: You do not have permission to access the Manager workspace.');
         setPage('Dashboard');
+        if (window.location.hash) {
+          window.location.hash = 'Dashboard';
+        }
       }
     }
   }, [page, auth, currentStaff, navItems, showToast]);
@@ -984,7 +1000,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {page === 'Feedback' && (
+          {page === 'Feedback' && isManager && (
             <FeedbackPage
               feedbacks={feedbacks}
               hotelName={hotelDisplayName}

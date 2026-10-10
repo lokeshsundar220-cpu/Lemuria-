@@ -117,6 +117,14 @@ const staffSchema = new mongoose.Schema(
       type: Date,
       default: Date.now
     },
+    lastAttendanceClosedReason: {
+      type: String,
+      default: ''
+    },
+    lastAttendanceClosedAt: {
+      type: Date,
+      default: null
+    },
     lastLoginAt: {
       type: Date,
       default: null
@@ -139,7 +147,13 @@ staffSchema.methods.comparePassword = async function (candidatePassword) {
 };
 
 staffSchema.methods.isEnabled = function () {
-  if (this.enabled === false || this.enabled === 'DISABLED' || this.accountStatus === 'DISABLED') {
+  if (
+    this.enabled === false ||
+    this.enabled === 'DISABLED' ||
+    this.accountStatus === 'DISABLED' ||
+    this.accountStatus === 'DELETED' ||
+    this.accountStatus === 'SUSPENDED'
+  ) {
     return false;
   }
   return true;
