@@ -5,6 +5,8 @@ interface TopBarProps {
   hotelName: string;
   duty: string;
   unreadNotes: number;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
   onOpenNotifications: () => void;
 }
 
@@ -13,6 +15,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   hotelName,
   duty,
   unreadNotes,
+  isSidebarOpen = false,
+  onToggleSidebar,
   onOpenNotifications
 }) => {
   const [timeStr, setTimeStr] = useState(() =>
@@ -28,19 +32,35 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <div className="top">
-      <b>{deptName.toUpperCase()} WORKSPACE</b>
-      <span className="mu" style={{ color: '#9eb5ce' }}>
-        {hotelName}
-      </span>
+      {onToggleSidebar && (
+        <button
+          type="button"
+          className="mobile-toggle-btn"
+          onClick={onToggleSidebar}
+          aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={isSidebarOpen}
+          title={isSidebarOpen ? 'Close Navigation (←)' : 'Open Navigation (→)'}
+        >
+          <span className="toggle-icon">{isSidebarOpen ? '←' : '→'}</span>
+          <span className="toggle-label">MENU</span>
+        </button>
+      )}
+
+      <div className="top-title-group">
+        <b>{deptName.toUpperCase()} WORKSPACE</b>
+        <span className="mu top-hotel-name" style={{ color: '#9eb5ce' }}>
+          {hotelName}
+        </span>
+      </div>
       <span className="sp"></span>
-      <span className="row" style={{ fontSize: '13px' }}>
+      <span className="row top-duty-indicator" style={{ fontSize: '13px' }}>
         <span className={`on-dot ${duty === 'ON' ? '' : 'off'}`}></span>
-        {duty === 'ON' ? 'Duty Active' : 'Off Duty'}
+        <span className="duty-text">{duty === 'ON' ? 'Duty Active' : 'Off Duty'}</span>
       </span>
-      <button className="btn gh sm" onClick={onOpenNotifications}>
+      <button className="btn gh sm top-notif-btn" onClick={onOpenNotifications}>
         🔔 {unreadNotes > 0 ? unreadNotes : ''}
       </button>
-      <span id="clk" style={{ fontSize: '13px', fontWeight: 600, color: '#cbd8e8' }}>
+      <span id="clk" className="top-clock" style={{ fontSize: '13px', fontWeight: 600, color: '#cbd8e8' }}>
         {timeStr}
       </span>
     </div>

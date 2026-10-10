@@ -80,6 +80,7 @@ export const App: React.FC = () => {
   const [busyMsg, setBusyMsg] = useState('');
   const [loginErr, setLoginErr] = useState('');
   const [managerBoardDept, setManagerBoardDept] = useState('housekeeping');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Modals state
   const [activeModal, setActiveModal] = useState<
@@ -858,7 +859,12 @@ export const App: React.FC = () => {
         navItems={navItems}
         currentPage={page}
         unreadNotes={unreadNotesCount}
-        onNavigate={(p) => setPage(p)}
+        isOpen={mobileSidebarOpen}
+        onClose={() => setMobileSidebarOpen(false)}
+        onNavigate={(p) => {
+          setPage(p);
+          setMobileSidebarOpen(false);
+        }}
         onLogout={handleLogout}
       />
 
@@ -868,7 +874,12 @@ export const App: React.FC = () => {
           hotelName={hotelDisplayName}
           duty={currentStaff.duty}
           unreadNotes={unreadNotesCount}
-          onOpenNotifications={() => setPage('Notifications')}
+          isSidebarOpen={mobileSidebarOpen}
+          onToggleSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+          onOpenNotifications={() => {
+            setPage('Notifications');
+            setMobileSidebarOpen(false);
+          }}
         />
 
         <div className="wrap">
@@ -1002,7 +1013,10 @@ export const App: React.FC = () => {
       <BottomNav
         navItems={navItems}
         currentPage={page}
-        onNavigate={(p) => setPage(p)}
+        onNavigate={(p) => {
+          setPage(p);
+          setMobileSidebarOpen(false);
+        }}
       />
 
       {/* 15-Second Task Offer Modal */}
