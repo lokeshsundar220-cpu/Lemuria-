@@ -112,7 +112,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                   onClick={() => {
                     setEmail('s.malik@example.com');
-                    setPassword('LemuriaGuest2026!');
+                    setPassword('lemuria123');
                   }}
                 >
                   Sanjay Malik (Grand)
@@ -123,7 +123,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                   onClick={() => {
                     setEmail('r.verma@example.com');
-                    setPassword('LemuriaGuest2026!');
+                    setPassword('lemuria123');
                   }}
                 >
                   Rahul Verma (Bay)
@@ -134,7 +134,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                   onClick={() => {
                     setEmail('h.lindqvist@example.com');
-                    setPassword('LemuriaGuest2026!');
+                    setPassword('lemuria123');
                   }}
                 >
                   Hanna Lindqvist (Hills)

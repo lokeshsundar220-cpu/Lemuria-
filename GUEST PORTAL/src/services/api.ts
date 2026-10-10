@@ -4,6 +4,10 @@
  */
 
 export function getApiBaseUrl(): string {
+  const isProd =
+    typeof import.meta !== 'undefined' &&
+    Boolean(import.meta.env?.PROD);
+
   const rawEnv =
     (typeof import.meta !== 'undefined' && import.meta.env
       ? import.meta.env.VITE_API_URL ||
@@ -13,12 +17,16 @@ export function getApiBaseUrl(): string {
 
   let trimmed = String(rawEnv).trim().replace(/\/+$/, '');
 
+  // If in production mode, never allow localhost fallback
+  if (isProd) {
+    if (!trimmed || trimmed.includes('localhost') || trimmed.includes('127.0.0.1')) {
+      return 'https://lemuria.onrender.com/api';
+    }
+  }
+
+  // Development mode fallback
   if (!trimmed) {
-    const isProd =
-      typeof import.meta !== 'undefined' &&
-      import.meta.env &&
-      import.meta.env.PROD;
-    return isProd ? 'https://lemuria.onrender.com/api' : 'http://localhost:5000/api';
+    return 'http://localhost:5000/api';
   }
 
   if (trimmed.toLowerCase().endsWith('/api')) {

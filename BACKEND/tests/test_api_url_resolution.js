@@ -4,12 +4,18 @@ const assert = require('assert');
  * URL resolution logic mirroring frontend getApiBaseUrl implementation
  */
 function resolveApiBaseUrl(env = {}) {
+  const isProd = env.PROD === true || env.NODE_ENV === 'production';
   const rawEnv = env.VITE_API_URL || env.VITE_API_BASE_URL || env.VITE_BACKEND_URL || '';
   let trimmed = String(rawEnv).trim().replace(/\/+$/, '');
 
+  if (isProd) {
+    if (!trimmed || trimmed.includes('localhost') || trimmed.includes('127.0.0.1')) {
+      return 'https://lemuria.onrender.com/api';
+    }
+  }
+
   if (!trimmed) {
-    const isProd = env.PROD === true || env.NODE_ENV === 'production';
-    return isProd ? 'https://lemuria.onrender.com/api' : 'http://localhost:5000/api';
+    return 'http://localhost:5000/api';
   }
 
   if (trimmed.toLowerCase().endsWith('/api')) {
@@ -48,9 +54,14 @@ function runTests() {
   console.log('✓ Test 4 Passed: VITE_API_BASE_URL="https://lemuria.onrender.com/api/" -> ' + t4);
 
   // Test 5: Local development fallback
-  const t5 = resolveApiBaseUrl({ VITE_API_BASE_URL: 'http://localhost:5000/api' });
+  const t5 = resolveApiBaseUrl({ VITE_API_BASE_URL: 'http://localhost:5000/api', PROD: false });
   assert.strictEqual(t5, 'http://localhost:5000/api', 'Test 5 Failed');
   console.log('✓ Test 5 Passed: Local development URL -> ' + t5);
+
+  // Test 5b: Production build with local .env containing localhost
+  const t5b = resolveApiBaseUrl({ VITE_API_BASE_URL: 'http://localhost:5000/api', PROD: true });
+  assert.strictEqual(t5b, 'https://lemuria.onrender.com/api', 'Test 5b Failed');
+  console.log('✓ Test 5b Passed: Production build ignoring localhost -> ' + t5b);
 
   // Test 6: Production default fallback (no env vars provided)
   const t6 = resolveApiBaseUrl({ PROD: true });
