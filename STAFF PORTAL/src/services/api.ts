@@ -253,7 +253,8 @@ async function request<T>(
 
 export async function loginStaff(
   emailOrCode: string,
-  password: string
+  password: string,
+  department: string
 ): Promise<{ token: string; staff: StaffMember }> {
   const data = await request<{
     token: string;
@@ -261,7 +262,7 @@ export async function loginStaff(
     user: any;
   }>('/auth/staff/login', {
     method: 'POST',
-    body: JSON.stringify({ emailOrCode, password })
+    body: JSON.stringify({ emailOrCode, password, department })
   });
 
   const staffData = data.staff || data.user;

@@ -3,17 +3,29 @@ const { successResponse, errorResponse } = require('../utils/response');
 
 const loginStaff = async (req, res, next) => {
   try {
-    const { email, staffCode, emailOrCode, staffId, password } = req.body;
+    const { email, staffCode, emailOrCode, staffId, password, department, workspace, dept, hotelId, hotelCode } = req.body;
     const loginIdentifier = emailOrCode || email || staffCode || staffId;
     if (!loginIdentifier || !password) {
       return errorResponse(res, 400, 'Staff email or code and password are required');
     }
 
+    const requestedDept = department || workspace || dept;
+    if (!requestedDept) {
+      return errorResponse(res, 400, 'Department workspace is required for staff login');
+    }
+
     const ip = req.ip || req.connection.remoteAddress;
-    const result = await authService.loginStaff(loginIdentifier, password, ip);
+    const result = await authService.loginStaff({
+      emailOrCode: loginIdentifier,
+      password,
+      department: requestedDept,
+      hotelId: hotelId || hotelCode,
+      ipAddress: ip
+    });
     return successResponse(res, 200, 'Staff authenticated successfully', result);
   } catch (error) {
-    return errorResponse(res, 401, error.message);
+    const statusCode = error.statusCode || 401;
+    return errorResponse(res, statusCode, error.message);
   }
 };
 

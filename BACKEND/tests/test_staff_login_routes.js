@@ -29,7 +29,7 @@ async function runTests() {
     const res1 = await fetch(`${baseUrl}/auth/staff/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailOrCode: 'GRD-HK-001', password: 'Password123!' })
+      body: JSON.stringify({ emailOrCode: 'GRD-HK-001', password: 'Password123!', department: 'housekeeping' })
     });
     const json1 = await res1.json();
     assert.strictEqual(res1.status, 200, `Expected 200 OK, got ${res1.status}`);
@@ -43,7 +43,7 @@ async function runTests() {
     const res2 = await fetch(`${baseUrl}/staff/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailOrCode: 'GRD-HK-001', password: 'Password123!' })
+      body: JSON.stringify({ emailOrCode: 'GRD-HK-001', password: 'Password123!', department: 'housekeeping' })
     });
     const json2 = await res2.json();
     assert.strictEqual(res2.status, 200, `Expected 200 OK, got ${res2.status}`);
@@ -55,7 +55,7 @@ async function runTests() {
     const res3 = await fetch(`${baseUrl}/auth/staff/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailOrCode: 'GRD-MG-001', password: 'Password123!' })
+      body: JSON.stringify({ emailOrCode: 'GRD-MG-001', password: 'Password123!', department: 'manager' })
     });
     const json3 = await res3.json();
     assert.strictEqual(res3.status, 200, `Expected 200 OK, got ${res3.status}`);
@@ -67,7 +67,7 @@ async function runTests() {
     const res4 = await fetch(`${baseUrl}/auth/staff/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailOrCode: 'GRD-RC-001', password: 'Password123!' })
+      body: JSON.stringify({ emailOrCode: 'GRD-RC-001', password: 'Password123!', department: 'reception' })
     });
     const json4 = await res4.json();
     assert.strictEqual(res4.status, 200, `Expected 200 OK, got ${res4.status}`);
@@ -79,7 +79,7 @@ async function runTests() {
     const res5 = await fetch(`${baseUrl}/auth/staff/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailOrCode: 'GRD-HK-001', password: 'WrongPassword999!' })
+      body: JSON.stringify({ emailOrCode: 'GRD-HK-001', password: 'WrongPassword999!', department: 'housekeeping' })
     });
     assert.strictEqual(res5.status, 401, `Expected 401 Unauthorized, got ${res5.status}`);
     console.log('✓ [TEST 5 PASSED] Invalid credentials properly rejected with 401\n');

@@ -304,6 +304,9 @@ export const App: React.FC = () => {
 
   // Actions
   const handlePickDepartment = (dept: string) => {
+    api.clearAuthSession();
+    setCurrentStaff(null);
+    setAuth(false);
     setSelectedDept(dept);
     setLand(false);
     setLoginErr('');
@@ -318,7 +321,7 @@ export const App: React.FC = () => {
     setBusyMsg('Authenticating with Lemuria Backend…');
     setLoginErr('');
     try {
-      const { staff: loggedInStaff } = await api.loginStaff(sid, pw);
+      const { staff: loggedInStaff } = await api.loginStaff(sid, pw, selectedDept);
 
       setCurrentStaff(loggedInStaff);
       setSelectedDept(loggedInStaff.department);
@@ -331,6 +334,7 @@ export const App: React.FC = () => {
 
       await loadBackendData();
     } catch (err: unknown) {
+      api.clearAuthSession();
       setLoginErr((err as Error).message || 'Invalid staff credentials or account disabled.');
     } finally {
       setBusy(false);

@@ -11,8 +11,15 @@ router.get('/my-bookings', authorizeRole('GUEST'), reservationController.getGues
 router.post('/:id/request-checkin', authorizeRole('GUEST'), reservationController.requestCheckIn);
 
 // Reception & Manager routes
+const requireReceptionOrManagerForStaff = (req, res, next) => {
+  if (req.user?.role === 'STAFF') {
+    return authorizeDepartment('RECEPTION', 'MANAGER')(req, res, next);
+  }
+  next();
+};
+
 router.get('/hotel', authorizeRole('STAFF'), authorizeDepartment('RECEPTION', 'MANAGER'), reservationController.getHotelReservations);
-router.post('/:id/approve-checkin', authorizeRole('STAFF', 'GUEST'), reservationController.approveCheckIn);
-router.post('/:id/checkout', authorizeRole('STAFF', 'GUEST'), reservationController.processCheckOut);
+router.post('/:id/approve-checkin', authorizeRole('STAFF', 'GUEST'), requireReceptionOrManagerForStaff, reservationController.approveCheckIn);
+router.post('/:id/checkout', authorizeRole('STAFF', 'GUEST'), requireReceptionOrManagerForStaff, reservationController.processCheckOut);
 
 module.exports = router;

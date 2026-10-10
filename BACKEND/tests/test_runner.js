@@ -89,7 +89,8 @@ async function runIntegrationSuite() {
 
       const loginRes = await authService.loginStaff({
         emailOrCode: managerStaff.staffCode || managerStaff.email,
-        password: process.env.SEED_DEFAULT_PASSWORD || 'Password123!'
+        password: process.env.SEED_DEFAULT_PASSWORD || 'Password123!',
+        department: managerStaff.department || 'manager'
       });
       const passed = !!loginRes.token && !!loginRes.staff;
       recordTest(2, 'Manager Login', passed, `Manager Code: ${managerStaff.staffCode || managerStaff.email}`);
@@ -111,7 +112,8 @@ async function runIntegrationSuite() {
 
       const loginRes = await authService.loginStaff({
         emailOrCode: hkStaff.staffCode || hkStaff.email,
-        password: process.env.SEED_DEFAULT_PASSWORD || 'Password123!'
+        password: process.env.SEED_DEFAULT_PASSWORD || 'Password123!',
+        department: hkStaff.department || 'housekeeping'
       });
       const passed = !!loginRes.token && !!loginRes.staff;
       recordTest(3, 'Staff Login', passed, `Staff Code: ${hkStaff.staffCode}`);
@@ -140,7 +142,8 @@ async function runIntegrationSuite() {
       try {
         await authService.loginStaff({
           emailOrCode: disabledStaff.staffCode,
-          password: process.env.SEED_DEFAULT_PASSWORD || 'Password123!'
+          password: process.env.SEED_DEFAULT_PASSWORD || 'Password123!',
+          department: 'housekeeping'
         });
       } catch (err) {
         if (err.message.includes('disabled') || err.message.includes('suspended')) {

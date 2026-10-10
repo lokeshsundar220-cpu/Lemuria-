@@ -87,23 +87,22 @@ const authorizeRole = (...allowedRoles) => {
   };
 };
 
+const { normalizeDepartment } = require('../utils/department');
+
 const authorizeDepartment = (...allowedDepartments) => {
   return (req, res, next) => {
     if (!req.staff) {
       return errorResponse(res, 403, 'Access denied: Staff authorization required');
     }
 
-    const userDept = (req.staff.department || '').toUpperCase();
+    const userDept = normalizeDepartment(req.staff.department);
     const userRole = (req.staff.role || '').toUpperCase();
-    const allowed = allowedDepartments.map((d) => d.toUpperCase());
+    const allowed = allowedDepartments.map((d) => normalizeDepartment(d));
 
     if (
-      userDept === 'MANAGER' ||
+      userDept === 'manager' ||
       userRole === 'MANAGER' ||
-      allowed.includes(userDept) ||
-      allowed.includes(userRole) ||
-      (userDept === 'FOOD_AND_BEVERAGE' && allowed.includes('FNB')) ||
-      (userDept === 'FNB' && allowed.includes('FOOD_AND_BEVERAGE'))
+      allowed.includes(userDept)
     ) {
       return next();
     }

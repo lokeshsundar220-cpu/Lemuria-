@@ -9,18 +9,32 @@ class AuthService {
     return jwt.sign(payload, secret, { expiresIn: '7d' });
   }
 
-  async loginStaff(emailOrCode, password, ipAddress = '') {
+  async loginStaff(emailOrCode, password, ipAddress = '', requestedDepartment = '', requestedHotelId = '') {
     let cleanInput = '';
     let pass = '';
     let ip = ipAddress;
+    let dept = requestedDepartment;
+    let targetHotel = requestedHotelId;
 
     if (typeof emailOrCode === 'object' && emailOrCode !== null) {
       cleanInput = (emailOrCode.emailOrCode || emailOrCode.email || emailOrCode.staffCode || emailOrCode.staffId || '').trim();
       pass = emailOrCode.password || '';
       ip = emailOrCode.ipAddress || ipAddress || '';
+      dept = emailOrCode.department || emailOrCode.workspace || emailOrCode.dept || requestedDepartment || '';
+      targetHotel = emailOrCode.hotelId || emailOrCode.hotel || emailOrCode.hotelCode || requestedHotelId || '';
     } else {
       cleanInput = (emailOrCode || '').trim();
       pass = password || '';
+    }
+
+    const createAuthError = (message, statusCode = 401) => {
+      const err = new Error(message);
+      err.statusCode = statusCode;
+      return err;
+    };
+
+    if (!cleanInput || !pass) {
+      throw createAuthError('Staff email or code and password are required', 400);
     }
     
     const staff = await Staff.findOne({
@@ -34,19 +48,51 @@ class AuthService {
     }).populate('hotelId');
 
     if (!staff) {
-      throw new Error('Invalid staff credentials');
+      throw createAuthError('Invalid staff credentials', 401);
     }
 
-    if (!staff.isEnabled()) {
-      throw new Error('Your staff account is currently disabled. Please contact your manager.');
+    if (!staff.isEnabled() || staff.accountStatus === 'DISABLED' || staff.accountStatus === 'DELETED') {
+      throw createAuthError('Your staff account is currently disabled. Please contact your manager.', 403);
     }
     if (staff.accountStatus === 'SUSPENDED') {
-      throw new Error('Your staff account is currently suspended.');
+      throw createAuthError('Your staff account is currently suspended.', 403);
     }
 
     const isMatch = await staff.comparePassword(pass);
     if (!isMatch) {
-      throw new Error('Invalid staff credentials');
+      throw createAuthError('Invalid staff credentials', 401);
+    }
+
+    // Require department workspace and enforce strict matching
+    const { normalizeDepartment } = require('../utils/department');
+    const normRequestedDept = normalizeDepartment(dept);
+    if (!normRequestedDept) {
+      throw createAuthError('Department workspace is required for staff login.', 400);
+    }
+
+    const normActualDept = normalizeDepartment(staff.department);
+    const staffRole = (staff.role || '').toUpperCase();
+
+    if (normActualDept !== normRequestedDept) {
+      throw createAuthError('Your account is not authorized for this department.', 403);
+    }
+
+    // Hotel tenant isolation verification
+    if (targetHotel) {
+      const staffHotelId = String(staff.hotelId?._id || staff.hotelId || staff.hotel || '');
+      const staffHotelCode = String(staff.hotelCode || staff.hotelId?.hotelCode || staff.hotelId?.code || '').toUpperCase();
+      const targetStr = String(targetHotel);
+      const targetStrUpper = targetStr.toUpperCase();
+      const staffAccess = (staff.hotelAccess || []).map(String);
+
+      const matchesHotel =
+        staffHotelId === targetStr ||
+        staffHotelCode === targetStrUpper ||
+        staffAccess.includes(targetStr);
+
+      if (!matchesHotel) {
+        throw createAuthError('Your account is not authorized for this hotel property.', 403);
+      }
     }
 
     staff.lastLoginAt = new Date();
@@ -57,7 +103,12 @@ class AuthService {
       action: 'STAFF_LOGIN',
       entityType: 'Staff',
       entityId: staff._id.toString(),
-      details: { staffCode: staff.staffCode, department: staff.department, hotelCode: staff.hotelCode },
+      details: {
+        staffCode: staff.staffCode,
+        department: staff.department,
+        requestedDepartment: dept,
+        hotelCode: staff.hotelCode
+      },
       ipAddress: ip
     });
 
