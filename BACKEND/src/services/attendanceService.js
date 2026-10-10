@@ -367,6 +367,34 @@ class AttendanceService {
       .sort({ startedAt: -1 })
       .limit(limit);
   }
+
+  /**
+   * Initialize background attendance scheduler for 11:59 PM auto-closure
+   */
+  initAttendanceScheduler(intervalMs = 30000) {
+    this.autoCloseExpiredAttendanceSessions().catch((err) => {
+      console.warn('[AttendanceScheduler] Initial catch-up check error:', err.message);
+    });
+
+    if (!this._intervalId) {
+      this._intervalId = setInterval(() => {
+        this.autoCloseExpiredAttendanceSessions().catch((err) => {
+          console.warn('[AttendanceScheduler] Periodic check error:', err.message);
+        });
+      }, intervalMs);
+      if (this._intervalId.unref) {
+        this._intervalId.unref();
+      }
+      console.log(`[AttendanceService] Automatic 11:59 PM attendance scheduler running (check interval: ${intervalMs / 1000}s).`);
+    }
+  }
+
+  stopAttendanceScheduler() {
+    if (this._intervalId) {
+      clearInterval(this._intervalId);
+      this._intervalId = null;
+    }
+  }
 }
 
 module.exports = new AttendanceService();

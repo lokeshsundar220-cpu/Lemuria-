@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Pill } from '../components/Pill';
+import * as api from '../services/api';
+import type { AttendanceItem } from '../services/api';
 
 interface StaffManagementPageProps {
   staffList: {
@@ -30,9 +32,33 @@ export const StaffManagementPage: React.FC<StaffManagementPageProps> = ({
   onOpenEditStaff,
   onSetStaffStatus
 }) => {
+  const [activeTab, setActiveTab] = useState<'directory' | 'attendance'>('directory');
   const [staffDept, setStaffDept] = useState('ALL');
   const [staffStatus, setStaffStatus] = useState('ALL');
   const [staffSearch, setStaffSearch] = useState('');
+
+  // Attendance history state
+  const [attendanceLogs, setAttendanceLogs] = useState<AttendanceItem[]>([]);
+  const [attLoading, setAttLoading] = useState(false);
+  const [attFilterMethod, setAttFilterMethod] = useState('ALL');
+  const [attFilterDept, setAttFilterDept] = useState('ALL');
+
+  useEffect(() => {
+    if (activeTab === 'attendance') {
+      const loadAttendance = async () => {
+        setAttLoading(true);
+        try {
+          const logs = await api.fetchHotelAttendance();
+          setAttendanceLogs(logs);
+        } catch (err) {
+          console.warn('Error loading attendance logs:', err);
+        } finally {
+          setAttLoading(false);
+        }
+      };
+      loadAttendance();
+    }
+  }, [activeTab]);
 
   const q = staffSearch.toLowerCase();
   const filtered = staffList.filter((s) => {
@@ -48,13 +74,19 @@ export const StaffManagementPage: React.FC<StaffManagementPageProps> = ({
     return true;
   });
 
+  const filteredAttendance = attendanceLogs.filter((a) => {
+    if (attFilterDept !== 'ALL' && a.department.toLowerCase() !== attFilterDept.toLowerCase()) return false;
+    if (attFilterMethod !== 'ALL' && a.endMethod !== attFilterMethod) return false;
+    return true;
+  });
+
   return (
     <>
       <div className="row bt" style={{ marginBottom: '16px' }}>
         <div>
-          <h1 className="serif">Staff Management</h1>
+          <h1 className="serif">Staff Management & Operations</h1>
           <div className="mu" style={{ fontSize: '13px' }}>
-            Administer employee accounts, departments, permissions, and duty states.
+            Administer employee accounts, departments, duty states, and 11:59 PM attendance logs.
           </div>
         </div>
         <button className="btn gd" onClick={onOpenAddStaff}>
@@ -62,46 +94,64 @@ export const StaffManagementPage: React.FC<StaffManagementPageProps> = ({
         </button>
       </div>
 
-      {/* Filter Bar */}
-      <div className="card" style={{ marginBottom: '18px', padding: '14px' }}>
-        <div className="row bt" style={{ gap: '12px' }}>
-          <div className="row" style={{ flex: '1 1 200px', minWidth: 0, width: '100%' }}>
-            <input
-              type="text"
-              placeholder="Search by name, ID, or email…"
-              value={staffSearch}
-              onChange={(e) => setStaffSearch(e.target.value)}
-              style={{ flex: '1 1 180px', minWidth: 0 }}
-            />
-            <select
-              style={{ width: 'auto' }}
-              value={staffDept}
-              onChange={(e) => setStaffDept(e.target.value)}
-            >
-              <option value="ALL">All Departments</option>
-              <option value="reception">Reception</option>
-              <option value="housekeeping">Housekeeping</option>
-              <option value="maintenance">Maintenance</option>
-              <option value="fnb">Food & Beverage</option>
-              <option value="manager">Manager</option>
-            </select>
-            <select
-              style={{ width: 'auto' }}
-              value={staffStatus}
-              onChange={(e) => setStaffStatus(e.target.value)}
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="ENABLED">Enabled (Active)</option>
-              <option value="SUSPENDED">Suspended</option>
-              <option value="DISABLED">Disabled</option>
-              <option value="DELETED">Deleted</option>
-            </select>
-          </div>
-          <div className="mu" style={{ fontSize: '12px' }}>
-            Showing {filtered.length} of {staffList.length} staff records
-          </div>
-        </div>
+      {/* Tab Bar */}
+      <div className="tab-bar" style={{ marginBottom: '16px' }}>
+        <button
+          className={`tab-btn ${activeTab === 'directory' ? 'on' : ''}`}
+          onClick={() => setActiveTab('directory')}
+        >
+          👥 Staff Directory ({staffList.length})
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'attendance' ? 'on' : ''}`}
+          onClick={() => setActiveTab('attendance')}
+        >
+          ⏱ Attendance & 11:59 PM Shift Logs ({attendanceLogs.length})
+        </button>
       </div>
+
+      {activeTab === 'directory' ? (
+        <>
+          {/* Filter Bar */}
+          <div className="card" style={{ marginBottom: '18px', padding: '14px' }}>
+            <div className="row bt" style={{ gap: '12px' }}>
+              <div className="row" style={{ flex: '1 1 200px', minWidth: 0, width: '100%' }}>
+                <input
+                  type="text"
+                  placeholder="Search by name, ID, or email…"
+                  value={staffSearch}
+                  onChange={(e) => setStaffSearch(e.target.value)}
+                  style={{ flex: '1 1 180px', minWidth: 0 }}
+                />
+                <select
+                  style={{ width: 'auto' }}
+                  value={staffDept}
+                  onChange={(e) => setStaffDept(e.target.value)}
+                >
+                  <option value="ALL">All Departments</option>
+                  <option value="reception">Reception</option>
+                  <option value="housekeeping">Housekeeping</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="fnb">Food & Beverage</option>
+                  <option value="manager">Manager</option>
+                </select>
+                <select
+                  style={{ width: 'auto' }}
+                  value={staffStatus}
+                  onChange={(e) => setStaffStatus(e.target.value)}
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="ENABLED">Enabled (Active)</option>
+                  <option value="SUSPENDED">Suspended</option>
+                  <option value="DISABLED">Disabled</option>
+                  <option value="DELETED">Deleted</option>
+                </select>
+              </div>
+              <div className="mu" style={{ fontSize: '12px' }}>
+                Showing {filtered.length} of {staffList.length} staff records
+              </div>
+            </div>
+          </div>
 
       {/* Staff Table */}
       <div className="card tw">
@@ -230,6 +280,128 @@ export const StaffManagementPage: React.FC<StaffManagementPageProps> = ({
           </tbody>
         </table>
       </div>
+      </>
+      ) : (
+        <>
+          {/* Attendance Filter Bar */}
+          <div className="card" style={{ marginBottom: '18px', padding: '14px' }}>
+            <div className="row bt" style={{ gap: '12px' }}>
+              <div className="row" style={{ flex: '1 1 200px', minWidth: 0, width: '100%' }}>
+                <select
+                  style={{ width: 'auto' }}
+                  value={attFilterDept}
+                  onChange={(e) => setAttFilterDept(e.target.value)}
+                >
+                  <option value="ALL">All Departments</option>
+                  <option value="reception">Reception</option>
+                  <option value="housekeeping">Housekeeping</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="fnb">Food & Beverage</option>
+                  <option value="manager">Manager</option>
+                </select>
+                <select
+                  style={{ width: 'auto' }}
+                  value={attFilterMethod}
+                  onChange={(e) => setAttFilterMethod(e.target.value)}
+                >
+                  <option value="ALL">All Closure Methods</option>
+                  <option value="AUTO">🌙 Automatic (11:59 PM Auto-Closed)</option>
+                  <option value="MANUAL">👤 Manual (Staff End Duty)</option>
+                </select>
+              </div>
+              <div className="mu" style={{ fontSize: '12px' }}>
+                Showing {filteredAttendance.length} attendance session records
+              </div>
+            </div>
+          </div>
+
+          {/* Attendance Table */}
+          <div className="card tw">
+            {attLoading ? (
+              <div style={{ padding: '30px', textAlign: 'center' }}>
+                <span className="spinner"></span> Loading attendance records…
+              </div>
+            ) : filteredAttendance.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Staff Member</th>
+                    <th>Department</th>
+                    <th>Work Date</th>
+                    <th>Shift Start</th>
+                    <th>Shift End</th>
+                    <th>Closure Method</th>
+                    <th>Status</th>
+                    <th>Reason / Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAttendance.map((a) => (
+                    <tr key={a.id}>
+                      <td>
+                        <b>{a.staffName || a.staffCode}</b>
+                        <div className="mu" style={{ fontSize: '11px' }}>
+                          {a.staffCode || (typeof a.staffId === 'object' ? a.staffId.staffCode : String(a.staffId))}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="pill no-dot" style={{ '--c': 'var(--bl)' } as React.CSSProperties}>
+                          {deptMap[a.department.toLowerCase()] || a.department}
+                        </span>
+                      </td>
+                      <td>
+                        <b>{a.workDate}</b>
+                      </td>
+                      <td>
+                        {a.startedAt ? new Date(a.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </td>
+                      <td>
+                        {a.endedAt ? new Date(a.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : <span className="mu">In Progress</span>}
+                      </td>
+                      <td>
+                        {a.endMethod === 'AUTO' ? (
+                          <span
+                            className="pill"
+                            style={{
+                              background: 'rgba(212, 175, 55, 0.18)',
+                              color: 'var(--gd)',
+                              border: '1px solid rgba(212, 175, 55, 0.4)'
+                            }}
+                          >
+                            🌙 AUTO (11:59 PM)
+                          </span>
+                        ) : a.endMethod === 'MANUAL' ? (
+                          <span className="pill" style={{ '--c': 'var(--g)' } as React.CSSProperties}>
+                            👤 MANUAL
+                          </span>
+                        ) : (
+                          <span className="mu">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <Pill label={a.status} />
+                      </td>
+                      <td>
+                        <span className="mu" style={{ fontSize: '11.5px' }}>
+                          {a.closureReason || (a.status === 'ACTIVE' ? 'Active Shift' : 'Completed')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty">
+                <div style={{ fontSize: '26px', color: 'var(--gd)' }}>⏱</div>
+                <b>NO ATTENDANCE RECORDS FOUND</b>
+                <div className="mu" style={{ fontSize: '13px', marginTop: '4px' }}>
+                  Staff shift attendance sessions and 11:59 PM auto-closure logs will appear here.
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </>
   );
 };

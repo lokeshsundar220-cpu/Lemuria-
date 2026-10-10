@@ -1,4 +1,5 @@
 const staffService = require('../services/staffService');
+const attendanceService = require('../services/attendanceService');
 const { Staff } = require('../models');
 const { successResponse, errorResponse } = require('../utils/response');
 
@@ -7,6 +8,7 @@ const { successResponse, errorResponse } = require('../utils/response');
  */
 const getHotelStaff = async (req, res, next) => {
   try {
+    await attendanceService.autoCloseExpiredAttendanceSessions();
     const hotelId = req.staff.hotelId?._id || req.staff.hotelId;
     const staffList = await Staff.find({
       $or: [{ hotelId }, { hotel: hotelId }]
@@ -22,6 +24,7 @@ const getHotelStaff = async (req, res, next) => {
  */
 const getMyProfile = async (req, res, next) => {
   try {
+    await attendanceService.autoCloseExpiredAttendanceSessions();
     const staff = await Staff.findById(req.staff._id).populate('currentTaskId').populate('hotelId');
     if (!staff) return errorResponse(res, 404, 'Staff profile not found');
     return successResponse(res, 200, 'Staff profile retrieved', staff);
@@ -61,18 +64,36 @@ const endDuty = async (req, res, next) => {
  */
 const getDutyStatus = async (req, res, next) => {
   try {
+    await attendanceService.autoCloseExpiredAttendanceSessions();
+    const staff = await Staff.findById(req.staff._id) || req.staff;
+
     return successResponse(res, 200, 'Staff status retrieved', {
-      staffId: req.staff.staffCode || req.staff.staffId,
-      fullName: req.staff.name || req.staff.fullName,
-      name: req.staff.name || req.staff.fullName,
-      department: req.staff.department,
-      accountStatus: req.staff.accountStatus || (req.staff.enabled ? 'ENABLED' : 'DISABLED'),
-      dutyStatus: req.staff.duty || req.staff.dutyStatus,
-      duty: req.staff.duty,
-      availability: req.staff.availability,
-      currentTaskId: req.staff.currentTaskId,
-      shiftStartTime: req.staff.dutyStartedAt || req.staff.shiftStartTime
+      staffId: staff.staffCode || staff.staffId,
+      fullName: staff.name || staff.fullName,
+      name: staff.name || staff.fullName,
+      department: staff.department,
+      accountStatus: staff.accountStatus || (staff.enabled ? 'ENABLED' : 'DISABLED'),
+      dutyStatus: staff.duty || staff.dutyStatus,
+      duty: staff.duty,
+      availability: staff.availability,
+      currentTaskId: staff.currentTaskId,
+      shiftStartTime: staff.dutyStartedAt || staff.shiftStartTime,
+      lastAttendanceClosedReason: staff.lastAttendanceClosedReason || '',
+      lastAttendanceClosedAt: staff.lastAttendanceClosedAt || null
     });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Get Staff Own Attendance History
+ */
+const getMyAttendanceHistory = async (req, res, next) => {
+  try {
+    const hotelId = req.staff.hotelId?._id || req.staff.hotelId;
+    const history = await attendanceService.getStaffAttendanceHistory(req.staff._id, hotelId);
+    return successResponse(res, 200, 'Staff attendance history retrieved', history);
   } catch (error) {
     return next(error);
   }
@@ -83,5 +104,6 @@ module.exports = {
   getMyProfile,
   startDuty,
   endDuty,
-  getDutyStatus
+  getDutyStatus,
+  getMyAttendanceHistory
 };

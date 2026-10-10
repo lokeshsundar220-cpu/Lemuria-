@@ -272,11 +272,35 @@ const getStaffWorkload = async (req, res, next) => {
   }
 };
 
+const attendanceService = require('../services/attendanceService');
+
+const getHotelAttendance = async (req, res, next) => {
+  try {
+    const hotelId = req.staff?.hotelId?._id || req.staff?.hotelId;
+    const { department, staffId, workDate, status, endMethod, limit } = req.query;
+    const history = await attendanceService.getHotelAttendanceHistory(
+      hotelId,
+      {
+        department,
+        staffId,
+        workDate,
+        status,
+        endMethod
+      },
+      limit ? parseInt(limit, 10) : 100
+    );
+    return successResponse(res, 200, 'Hotel staff attendance records retrieved', history);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   addStaff,
   getAllStaff,
   updateStaff,
   setStaffAccountStatus,
   deleteStaff,
-  getStaffWorkload
+  getStaffWorkload,
+  getHotelAttendance
 };

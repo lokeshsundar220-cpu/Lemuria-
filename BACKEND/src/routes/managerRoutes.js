@@ -20,4 +20,7 @@ router.delete('/staff/:id', managerController.deleteStaff);
 router.get('/workload', managerController.getStaffWorkload);
 router.post('/tasks/:id/assign', taskController.assignTask);
 
+// Staff Attendance History for Manager
+router.get('/attendance', managerController.getHotelAttendance);
+
 module.exports = router;

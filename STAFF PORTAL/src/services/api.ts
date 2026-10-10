@@ -60,6 +60,9 @@ export interface StaffMember {
   availability: string;
   currentTaskId: string | null;
   shiftStartTime?: string | null;
+  dutyStartedAt?: string | null;
+  lastAttendanceClosedReason?: string;
+  lastAttendanceClosedAt?: string | null;
 }
 
 export interface RoomItem {
@@ -179,6 +182,24 @@ export interface NotificationItem {
   to?: string;
   at: number;
   read: boolean;
+}
+
+export interface AttendanceItem {
+  id: string;
+  _id?: string;
+  hotelId: string;
+  staffId: string | { _id: string; name: string; fullName?: string; staffCode?: string; department: string };
+  staffCode?: string;
+  staffName?: string;
+  department: string;
+  workDate: string;
+  startedAt: string | number;
+  endedAt: string | number | null;
+  status: 'ACTIVE' | 'COMPLETED' | 'AUTO_CLOSED';
+  endMethod: 'MANUAL' | 'AUTO' | null;
+  closureReason?: string;
+  scheduledCutoffAt?: string | number | null;
+  tasksCompleted?: number;
 }
 
 // Token management in LocalStorage
@@ -309,13 +330,16 @@ export async function fetchMyProfile(): Promise<StaffMember> {
     duty: (staffData.duty === 'ON' || staffData.duty === 'ON_DUTY' || staffData.dutyStatus === 'ON_DUTY') ? 'ON' : 'OFF',
     availability: staffData.availability || 'AVAILABLE',
     currentTaskId: staffData.currentTaskId?._id || staffData.currentTaskId || null,
-    shiftStartTime: staffData.shiftStartTime || staffData.dutyStartedAt
+    shiftStartTime: staffData.shiftStartTime || staffData.dutyStartedAt,
+    dutyStartedAt: staffData.dutyStartedAt || staffData.shiftStartTime,
+    lastAttendanceClosedReason: staffData.lastAttendanceClosedReason || '',
+    lastAttendanceClosedAt: staffData.lastAttendanceClosedAt || null
   };
   return staff;
 }
 
 // ==========================================
-// DUTY SYSTEM APIs
+// DUTY SYSTEM & ATTENDANCE APIs
 // ==========================================
 
 export async function startDuty(): Promise<StaffMember> {
@@ -329,7 +353,10 @@ export async function startDuty(): Promise<StaffMember> {
     enabled: 'ENABLED',
     duty: 'ON',
     availability: 'AVAILABLE',
-    currentTaskId: null
+    currentTaskId: null,
+    shiftStartTime: staffData.dutyStartedAt || staffData.shiftStartTime || new Date().toISOString(),
+    dutyStartedAt: staffData.dutyStartedAt || staffData.shiftStartTime || new Date().toISOString(),
+    lastAttendanceClosedReason: ''
   };
 }
 
@@ -344,8 +371,65 @@ export async function endDuty(): Promise<StaffMember> {
     enabled: 'ENABLED',
     duty: 'OFF',
     availability: 'AVAILABLE',
-    currentTaskId: null
+    currentTaskId: null,
+    lastAttendanceClosedReason: staffData.lastAttendanceClosedReason || 'MANUAL',
+    lastAttendanceClosedAt: staffData.lastAttendanceClosedAt || new Date().toISOString()
   };
+}
+
+export async function fetchMyAttendanceHistory(): Promise<AttendanceItem[]> {
+  const raw = await request<any[]>('/staff/attendance');
+  return (raw || []).map((a) => ({
+    id: a._id || a.id,
+    _id: a._id,
+    hotelId: a.hotelId?._id || a.hotelId,
+    staffId: a.staffId,
+    staffCode: a.staffCode || a.staffId?.staffCode || '',
+    staffName: a.staffName || a.staffId?.name || a.staffId?.fullName || '',
+    department: a.department || '',
+    workDate: a.workDate,
+    startedAt: a.startedAt,
+    endedAt: a.endedAt,
+    status: a.status,
+    endMethod: a.endMethod,
+    closureReason: a.closureReason,
+    scheduledCutoffAt: a.scheduledCutoffAt,
+    tasksCompleted: a.tasksCompleted || 0
+  }));
+}
+
+export async function fetchHotelAttendance(filters?: {
+  department?: string;
+  staffId?: string;
+  workDate?: string;
+  status?: string;
+  endMethod?: string;
+}): Promise<AttendanceItem[]> {
+  const params = new URLSearchParams();
+  if (filters?.department) params.append('department', filters.department);
+  if (filters?.staffId) params.append('staffId', filters.staffId);
+  if (filters?.workDate) params.append('workDate', filters.workDate);
+  if (filters?.status) params.append('status', filters.status);
+  if (filters?.endMethod) params.append('endMethod', filters.endMethod);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  const raw = await request<any[]>(`/manager/attendance${q}`);
+  return (raw || []).map((a) => ({
+    id: a._id || a.id,
+    _id: a._id,
+    hotelId: a.hotelId?._id || a.hotelId,
+    staffId: a.staffId,
+    staffCode: a.staffCode || a.staffId?.staffCode || '',
+    staffName: a.staffName || a.staffId?.name || a.staffId?.fullName || '',
+    department: a.department || '',
+    workDate: a.workDate,
+    startedAt: a.startedAt,
+    endedAt: a.endedAt,
+    status: a.status,
+    endMethod: a.endMethod,
+    closureReason: a.closureReason,
+    scheduledCutoffAt: a.scheduledCutoffAt,
+    tasksCompleted: a.tasksCompleted || 0
+  }));
 }
 
 // ==========================================

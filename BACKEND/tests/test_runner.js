@@ -25,6 +25,7 @@ const {
 const authService = require('../src/services/authService');
 const bookingService = require('../src/services/bookingService');
 const taskService = require('../src/services/taskService');
+const staffService = require('../src/services/staffService');
 
 const TEST_IDENTIFIER = `INTEG_TEST_${Date.now()}`;
 const TEST_GUEST_EMAIL = `test.guest.${Date.now()}@lemuria.test`;
@@ -313,6 +314,9 @@ async function runIntegrationSuite() {
 
     // 14. Task creation
     try {
+      if (hkStaff) {
+        await staffService.startDuty(hkStaff._id);
+      }
       testTask = await taskService.createTask({
         hotelId: grdHotel._id,
         department: 'HOUSEKEEPING',

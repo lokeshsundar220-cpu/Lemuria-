@@ -9,6 +9,10 @@ interface DashboardPageProps {
     duty: string;
     availability: string;
     enabled: string;
+    shiftStartTime?: string | number | null;
+    dutyStartedAt?: string | number | null;
+    lastAttendanceClosedReason?: string;
+    lastAttendanceClosedAt?: string | number | null;
   };
   deptMap: Record<string, string>;
   emergencies: {
@@ -458,14 +462,38 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <h1 className="serif" style={{ margin: '4px 0 8px', fontSize: '26px' }}>
             {staff.name}
           </h1>
-          <div className="row">
+          <div className="row" style={{ flexWrap: 'wrap', gap: '8px' }}>
             <span className="mu" style={{ color: '#cbd8e8', fontWeight: 600 }}>
               {staff.id}
             </span>
             <Pill label={on ? 'ON DUTY' : 'OFF DUTY'} />
             {on ? <Pill label={staff.availability} /> : null}
             <Pill label={staff.enabled} />
+            {on && (staff.shiftStartTime || staff.dutyStartedAt) ? (
+              <span className="mu" style={{ fontSize: '12px', color: 'var(--gd)', fontWeight: 600 }}>
+                ⏱ Shift Started: {new Date(staff.shiftStartTime || staff.dutyStartedAt || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            ) : null}
           </div>
+          {!on && (staff.lastAttendanceClosedReason === 'AUTO_CLOSED_END_OF_DAY' || String(staff.lastAttendanceClosedReason).includes('AUTO')) ? (
+            <div
+              style={{
+                marginTop: '10px',
+                background: 'rgba(212, 175, 55, 0.15)',
+                border: '1px solid rgba(212, 175, 55, 0.4)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: '#f0e6d2',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span>🌙</span>
+              <span>Your attendance was automatically closed at the end of the day (11:59 PM). Click <b>START DUTY</b> to begin your new shift.</span>
+            </div>
+          ) : null}
         </div>
         <div className="row">
           <button

@@ -88,10 +88,15 @@ app.use(errorHandler);
 
 let server = null;
 
+const attendanceService = require('./src/services/attendanceService');
+
 // Server startup & Database initialization
 const startServer = async () => {
   try {
     await connectDB();
+
+    // Start 11:59 PM attendance auto-closure scheduler & catch-up
+    attendanceService.initAttendanceScheduler();
 
     if (process.env.NODE_ENV !== 'test') {
       server = app.listen(PORT, () => {
@@ -113,6 +118,7 @@ const startServer = async () => {
 
 const handleShutdown = async () => {
   console.log('\n[Graceful Shutdown] Closing HTTP server and MongoDB connection...');
+  attendanceService.stopAttendanceScheduler();
   if (server) {
     server.close(() => {
       console.log('[Server] HTTP server closed.');

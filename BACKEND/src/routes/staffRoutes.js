@@ -18,5 +18,7 @@ router.get('/me', staffController.getMyProfile);
 router.post('/duty/start', staffController.startDuty);
 router.post('/duty/end', staffController.endDuty);
 router.get('/duty/status', staffController.getDutyStatus);
+router.get('/duty/history', staffController.getMyAttendanceHistory);
+router.get('/attendance', staffController.getMyAttendanceHistory);
 
 module.exports = router;
