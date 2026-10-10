@@ -200,7 +200,7 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
               className="btn gd"
               disabled={busy || !selectedStaffId}
               id="btn-confirm-assign-staff"
-              style={{ minWidth: '150px', fontWeight: 700 }}
+              style={{ flex: '1 1 140px', minWidth: 0, maxWidth: '220px', fontWeight: 700 }}
             >
               {busy ? <span className="spinner"></span> : null}
               {busy ? ' Assigning…' : 'ASSIGN STAFF'}

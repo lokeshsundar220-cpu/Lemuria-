@@ -65,13 +65,13 @@ export const StaffManagementPage: React.FC<StaffManagementPageProps> = ({
       {/* Filter Bar */}
       <div className="card" style={{ marginBottom: '18px', padding: '14px' }}>
         <div className="row bt" style={{ gap: '12px' }}>
-          <div className="row" style={{ flex: 1, minWidth: '240px' }}>
+          <div className="row" style={{ flex: '1 1 200px', minWidth: 0, width: '100%' }}>
             <input
               type="text"
               placeholder="Search by name, ID, or email…"
               value={staffSearch}
               onChange={(e) => setStaffSearch(e.target.value)}
-              style={{ maxWidth: '320px' }}
+              style={{ flex: '1 1 180px', minWidth: 0 }}
             />
             <select
               style={{ width: 'auto' }}

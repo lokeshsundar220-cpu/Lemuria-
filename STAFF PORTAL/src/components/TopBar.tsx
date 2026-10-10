@@ -42,7 +42,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           title={isSidebarOpen ? 'Close Navigation (←)' : 'Open Navigation (→)'}
         >
           <span className="toggle-icon">{isSidebarOpen ? '←' : '→'}</span>
-          <span className="toggle-label">MENU</span>
+          <span className="toggle-label">{isSidebarOpen ? 'CLOSE' : 'MENU'}</span>
         </button>
       )}
 

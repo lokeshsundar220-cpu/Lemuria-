@@ -128,7 +128,7 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({
       {/* Filter Bar */}
       <div className="card" style={{ marginBottom: '18px', padding: '14px' }}>
         <div className="row bt" style={{ gap: '12px' }}>
-          <div className="row" style={{ flex: 1, minWidth: '240px' }}>
+          <div className="row" style={{ flex: '1 1 200px', minWidth: 0, width: '100%' }}>
             <select
               style={{ width: 'auto' }}
               value={fbDept}

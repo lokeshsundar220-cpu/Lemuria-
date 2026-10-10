@@ -111,13 +111,13 @@ export const TaskOfferModal: React.FC<TaskOfferModalProps> = ({
           <i style={{ width: `${progressPercent}%`, transition: 'width 0.2s linear' }}></i>
         </div>
 
-        <div className="row" style={{ justifyContent: 'center', gap: '14px' }}>
+        <div className="row" style={{ justifyContent: 'center', gap: '10px' }}>
           <button
             className="btn gh lg"
             onClick={onDecline}
             disabled={busy}
             id="btn-decline-task-offer"
-            style={{ minWidth: '130px', fontWeight: 600 }}
+            style={{ flex: '1 1 110px', minWidth: 0, maxWidth: '180px', fontWeight: 600 }}
           >
             DECLINE
           </button>
@@ -126,7 +126,7 @@ export const TaskOfferModal: React.FC<TaskOfferModalProps> = ({
             onClick={onAccept}
             disabled={busy || timeLeft <= 0}
             id="btn-accept-task-offer"
-            style={{ minWidth: '150px', fontWeight: 700 }}
+            style={{ flex: '1 1 130px', minWidth: 0, maxWidth: '200px', fontWeight: 700 }}
           >
             {busy ? <span className="spinner"></span> : 'ACCEPT TASK'}
           </button>

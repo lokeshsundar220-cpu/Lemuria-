@@ -56,7 +56,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({
         </div>
       </div>
 
-      <div className="card">
+      <div className="card tw">
         <h2>Department Performance Summary</h2>
         <table>
           <thead>
