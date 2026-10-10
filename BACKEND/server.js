@@ -14,21 +14,46 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet());
 
 // CORS configuration
-const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').map((u) => u.trim())
-  : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'];
+const envOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((u) => u.trim().replace(/\/+$/, '')).filter(Boolean)
+  : [];
+
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:3000',
+  'https://lemuria-guest-portal-fajmniecm-lemuria4.vercel.app'
+];
+
+const configuredOrigins = new Set([...envOrigins, ...defaultOrigins]);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const cleanOrigin = origin.replace(/\/+$/, '');
+
+  // Exact match with configured origins
+  if (configuredOrigins.has(cleanOrigin)) return true;
+
+  // Localhost or 127.0.0.1 on any port
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) return true;
+
+  // Any Vercel preview or production deployment domain
+  if (/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.vercel\.app$/i.test(cleanOrigin)) return true;
+
+  // Any Render web service domain
+  if (/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.onrender\.com$/i.test(cleanOrigin)) return true;
+
+  return false;
+};
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
-        return callback(null, true);
+      if (isAllowedOrigin(origin)) {
+        return callback(null, origin || true);
       }
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-        return callback(null, true);
-      }
-      return callback(null, true);
+      return callback(new Error(`Origin ${origin} is not allowed by Lemuria CORS policy.`));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

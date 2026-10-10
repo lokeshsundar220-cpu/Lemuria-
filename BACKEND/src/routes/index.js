@@ -39,6 +39,7 @@ router.use('/reservations', reservationRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/service-requests', serviceRequestRoutes);
 router.use('/emergency', emergencyRoutes);
+router.use('/emergencies', emergencyRoutes);
 router.use('/feedback', feedbackRoutes);
 router.use('/manager', managerRoutes);
 router.use('/notifications', notificationRoutes);
