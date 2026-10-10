@@ -23,7 +23,8 @@ const defaultOrigins = [
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:3000',
-  'https://lemuria-guest-portal-fajmniecm-lemuria4.vercel.app'
+  'https://lemuria-guest-portal-fajmniecm-lemuria4.vercel.app',
+  'https://lemuria-staff-portal.vercel.app'
 ];
 
 const configuredOrigins = new Set([...envOrigins, ...defaultOrigins]);
