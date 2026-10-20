@@ -22,6 +22,7 @@ const seedDatabase = async () => {
       wifiSSID: 'Lemuria-Guest-Ultra',
       wifiPassword: 'LemuriaWelcome2026',
       starRating: 5,
+      imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
       amenities: [
         'Private Oceanfront Balconies',
         '24/7 Infinity Rooftop Pool',
@@ -44,6 +45,7 @@ const seedDatabase = async () => {
       wifiSSID: 'Lemuria-Goa-Retreat',
       wifiPassword: 'LemuriaGoa2026',
       starRating: 5,
+      imageUrl: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=1200&q=80',
       amenities: [
         'Private Beachfront Cabanas',
         'Lagoon Pool & Sunset Bar',

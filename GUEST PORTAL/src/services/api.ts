@@ -46,6 +46,11 @@ export interface Hotel {
   code?: string;
   name: string;
   city: string;
+  state?: string;
+  country?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
   rating: number;
   starRating?: number;
   from: number;
@@ -57,6 +62,7 @@ export interface Hotel {
   dining?: string;
   fac?: string;
   facilities?: string;
+  imageUrl?: string;
 }
 
 export interface Room {
@@ -248,13 +254,30 @@ async function apiRequest<T = any>(
 
 // Normalizers
 export function normalizeHotel(raw: any): Hotel {
-  const id = raw.hotelCode ? raw.hotelCode.toLowerCase() : raw.code || raw._id || raw.id || 'hotel';
+  const rawCode = String(raw.hotelCode || raw.code || '').toLowerCase();
+  const rawId = String(raw._id || raw.id || '');
+
+  // Determine standard canonical slug while preserving unique ID
+  let slug = raw.code || (raw.hotelCode ? String(raw.hotelCode).toLowerCase() : '');
+  if (!slug) {
+    if (rawCode.includes('grd') || rawCode.includes('grand')) slug = 'grand';
+    else if (rawCode.includes('bay')) slug = 'bay';
+    else if (rawCode.includes('hil') || rawCode.includes('hills')) slug = 'hills';
+    else slug = rawId || 'hotel';
+  }
+
   return {
-    id: id.includes('grd') || id.includes('grand') ? 'grand' : id.includes('bay') ? 'bay' : id.includes('hil') || id.includes('hills') ? 'hills' : id,
-    _id: raw._id,
-    hotelCode: raw.hotelCode || raw.code,
+    id: slug,
+    _id: raw._id ? String(raw._id) : (raw.id ? String(raw.id) : undefined),
+    hotelCode: raw.hotelCode || raw.code || '',
+    code: raw.code || slug,
     name: raw.name || 'Lemuria Hotel',
     city: raw.city || 'India',
+    state: raw.state || '',
+    country: raw.country || 'India',
+    address: raw.address || '',
+    phone: raw.phone || '',
+    email: raw.email || '',
     rating: raw.starRating || raw.rating || 5,
     starRating: raw.starRating || raw.rating || 5,
     from: raw.startingPrice || raw.from || 8500,
@@ -264,7 +287,8 @@ export function normalizeHotel(raw: any): Hotel {
     am: Array.isArray(raw.amenities) && raw.amenities.length > 0 ? raw.amenities : (raw.am || ['Wi-Fi', 'Pool', 'Dining', 'Spa']),
     amenities: raw.amenities || raw.am || [],
     dining: raw.dining || 'All-day fine dining and rooftop café',
-    fac: raw.facilities || raw.fac || 'Valet parking, wellness spa, concierge'
+    fac: raw.facilities || raw.fac || 'Valet parking, wellness spa, concierge',
+    imageUrl: raw.imageUrl || raw.image || raw.photo || ''
   };
 }
 
@@ -493,7 +517,17 @@ export const api = {
     async getAll(): Promise<Hotel[]> {
       const res = await apiRequest('/hotels');
       const list = Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
-      return list.map(normalizeHotel);
+      const seen = new Set<string>();
+      const hotels: Hotel[] = [];
+      for (const item of list) {
+        const normalized = normalizeHotel(item);
+        const uniqueKey = normalized._id || normalized.hotelCode || normalized.id;
+        if (!seen.has(uniqueKey)) {
+          seen.add(uniqueKey);
+          hotels.push(normalized);
+        }
+      }
+      return hotels;
     },
 
     async getById(id: string): Promise<Hotel> {

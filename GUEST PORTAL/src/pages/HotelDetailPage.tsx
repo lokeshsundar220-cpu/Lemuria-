@@ -1,16 +1,24 @@
 import React from 'react';
 import { HotelArt } from '../components/HotelArt';
+import { HotelCardImage } from '../components/HotelCardImage';
 
 interface Hotel {
   id: string;
+  _id?: string;
   name: string;
   city: string;
   rating: number;
   from: number;
   blurb: string;
   am: string[];
+  imageUrl?: string;
+  hotelCode?: string;
+  code?: string;
   dining?: string;
   fac?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
 }
 
 interface Room {
@@ -43,7 +51,13 @@ export const HotelDetailPage: React.FC<HotelDetailPageProps> = ({
   return (
     <>
       <div className="card">
-        <HotelArt index={hotelIndex >= 0 ? hotelIndex : 0} height={240} />
+        <HotelCardImage
+          imageUrl={hotel.imageUrl}
+          name={hotel.name}
+          index={hotelIndex >= 0 ? hotelIndex : 0}
+          height={280}
+          aspectRatio="16 / 9"
+        />
         <div className="pad">
           <span className="gold">{stars(hotel.rating)}</span>
           <h1 style={{ fontSize: '2.6rem' }}>{hotel.name}</h1>

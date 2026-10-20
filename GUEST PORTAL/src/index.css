@@ -2351,3 +2351,54 @@ footer {
   }
 }
 
+/* ==========================================================================
+   Hotel Card Media, Images & State Handling
+   ========================================================================== */
+@keyframes hotelShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.hotel-listing-card {
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.hotel-listing-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(7, 26, 43, 0.12);
+}
+
+.hotel-media-wrapper {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background-color: #071A2B;
+}
+
+.hotel-media-wrapper img {
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+}
+
+.hotel-listing-card:hover .hotel-media-wrapper img {
+  transform: scale(1.04);
+}
+
+.hotel-skeleton-card {
+  background: var(--white);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(7, 26, 43, 0.06);
+}
+
+.small-btn {
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+

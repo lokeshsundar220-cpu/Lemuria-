@@ -53,6 +53,8 @@ export const App: React.FC = () => {
 
   // Entities & session state
   const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [isHotelsLoading, setIsHotelsLoading] = useState<boolean>(true);
+  const [hotelsError, setHotelsError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [pendingUser, setPendingUser] = useState<{ name: string; email: string; mobile: string } | null>(null);
@@ -80,27 +82,32 @@ export const App: React.FC = () => {
 
   // Fetch all hotels and rooms from live backend
   const loadHotelData = useCallback(async () => {
+    setIsHotelsLoading(true);
+    setHotelsError(null);
     try {
       const fetchedHotels = await api.hotels.getAll();
-      if (fetchedHotels.length > 0) {
-        setHotels(fetchedHotels);
-      }
+      setHotels(fetchedHotels);
 
       // Preload rooms for all hotels
-      const allRoomsPromises = fetchedHotels.map(async (h) => {
-        try {
-          return await api.rooms.getByHotel(h._id || h.hotelCode || h.id);
-        } catch {
-          return [];
+      if (fetchedHotels.length > 0) {
+        const allRoomsPromises = fetchedHotels.map(async (h) => {
+          try {
+            return await api.rooms.getByHotel(h._id || h.hotelCode || h.id);
+          } catch {
+            return [];
+          }
+        });
+        const roomsArrays = await Promise.all(allRoomsPromises);
+        const combinedRooms = roomsArrays.flat();
+        if (combinedRooms.length > 0) {
+          setRooms(combinedRooms);
         }
-      });
-      const roomsArrays = await Promise.all(allRoomsPromises);
-      const combinedRooms = roomsArrays.flat();
-      if (combinedRooms.length > 0) {
-        setRooms(combinedRooms);
       }
-    } catch {
-      // Backend error fallback
+    } catch (err: any) {
+      console.error('[Hotel Load Error]', err);
+      setHotelsError(err.message || 'Unable to connect to hotel service. Please check connection and retry.');
+    } finally {
+      setIsHotelsLoading(false);
     }
   }, []);
 
@@ -360,16 +367,27 @@ export const App: React.FC = () => {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const currentHotel = hotels.find((h) => h.id === param1 || h.hotelCode === param1 || h._id === param1) || hotels[0] || {
+  const currentHotel = hotels.find((h) => 
+    h.id === param1 || 
+    h.hotelCode?.toLowerCase() === param1?.toLowerCase() || 
+    h.code?.toLowerCase() === param1?.toLowerCase() || 
+    h._id === param1
+  ) || hotels[0] || {
     id: 'grand',
+    hotelCode: 'GRD',
+    code: 'grand',
     name: 'Lemuria Grand',
     city: 'Chennai',
     rating: 5,
+    starRating: 5,
     from: 9800,
+    startingPrice: 9800,
     blurb: 'Luxury rooms, premium dining and modern guest services.',
     am: ['Pool', 'Spa', 'Fine dining', 'Gym'],
+    amenities: ['Pool', 'Spa', 'Fine dining', 'Gym'],
     dining: 'Rooftop grill, all-day café',
-    fac: 'Business lounge, valet, airport transfer'
+    fac: 'Business lounge, valet, airport transfer',
+    imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80'
   };
 
   const currentRoom = rooms.find((r) => r.id === param2 || r._id === param2 || r.roomNumber === param2) || rooms[0] || {
@@ -397,7 +415,10 @@ export const App: React.FC = () => {
       <main className={['home', 'login', 'verify-otp'].includes(mainRoute) ? 'wide' : ''}>
         {mainRoute === 'home' && (
           <HomePage
-            hotels={hotels.length > 0 ? hotels : [currentHotel]}
+            hotels={hotels}
+            isLoading={isHotelsLoading}
+            error={hotelsError}
+            onRetry={loadHotelData}
             isLoggedIn={!!user}
             onNavigate={navigate}
           />
@@ -405,7 +426,10 @@ export const App: React.FC = () => {
 
         {mainRoute === 'hotels' && (
           <HotelsPage
-            hotels={hotels.length > 0 ? hotels : [currentHotel]}
+            hotels={hotels}
+            isLoading={isHotelsLoading}
+            error={hotelsError}
+            onRetry={loadHotelData}
             onNavigate={navigate}
           />
         )}

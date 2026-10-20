@@ -35,7 +35,7 @@ const hotelSchema = new mongoose.Schema(
     },
     address: {
       type: String,
-      required: true
+      default: ''
     },
     phone: {
       type: String,
@@ -82,6 +82,11 @@ const hotelSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    imageUrl: {
+      type: String,
+      default: '',
+      trim: true
+    },
     isActive: {
       type: Boolean,
       default: true
@@ -100,6 +105,10 @@ const hotelSchema = new mongoose.Schema(
 
 hotelSchema.virtual('id').get(function () {
   return this._id.toHexString();
+});
+
+hotelSchema.virtual('image').get(function () {
+  return this.imageUrl;
 });
 
 module.exports = mongoose.model('Hotel', hotelSchema, 'hotels');

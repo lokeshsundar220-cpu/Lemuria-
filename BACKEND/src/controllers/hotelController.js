@@ -6,7 +6,17 @@ const { successResponse, errorResponse } = require('../utils/response');
  */
 const getAllHotels = async (req, res, next) => {
   try {
-    const hotels = await Hotel.find({ isActive: true });
+    const filter = { isActive: { $ne: false } };
+    if (req.query.city) {
+      filter.city = new RegExp(String(req.query.city).trim(), 'i');
+    }
+    if (req.query.starRating) {
+      const parsedRating = Number(req.query.starRating);
+      if (!isNaN(parsedRating)) {
+        filter.starRating = { $gte: parsedRating };
+      }
+    }
+    const hotels = await Hotel.find(filter).sort({ starRating: -1, name: 1 });
     return successResponse(res, 200, 'Hotels fetched successfully', hotels);
   } catch (error) {
     return next(error);
@@ -46,9 +56,9 @@ const getHotelById = async (req, res, next) => {
  */
 const createHotel = async (req, res, next) => {
   try {
-    const { hotelCode, name, city, state, country, address, phone, email, wifiSSID, wifiPassword, amenities, starRating } = req.body;
-    const hotel = await Hotel.create({
+    const {
       hotelCode,
+      code,
       name,
       city,
       state,
@@ -59,7 +69,32 @@ const createHotel = async (req, res, next) => {
       wifiSSID,
       wifiPassword,
       amenities,
-      starRating
+      starRating,
+      imageUrl,
+      startingPrice,
+      description,
+      dining,
+      facilities
+    } = req.body;
+    const hotel = await Hotel.create({
+      hotelCode,
+      code: code || (hotelCode ? hotelCode.toLowerCase() : undefined),
+      name,
+      city,
+      state,
+      country,
+      address,
+      phone,
+      email,
+      wifiSSID,
+      wifiPassword,
+      amenities,
+      starRating,
+      imageUrl: imageUrl || '',
+      startingPrice: startingPrice || 8000,
+      description: description || '',
+      dining: dining || '',
+      facilities: facilities || ''
     });
     return successResponse(res, 201, 'Hotel created successfully', hotel);
   } catch (error) {
