@@ -173,9 +173,13 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
         {isManagerRole && !t.assignedStaffId && onOpenAssignStaff ? (
           <div style={{ marginTop: '10px' }}>
             <button
-              className="btn sm gd"
+              className={`btn sm gd ${staff.duty !== 'ON' ? 'disabled' : ''}`}
+              style={staff.duty !== 'ON' ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              disabled={staff.duty !== 'ON'}
+              title={staff.duty !== 'ON' ? 'Start your duty before assigning tasks' : 'Assign staff'}
               onClick={(e) => {
                 e.stopPropagation();
+                if (staff.duty !== 'ON') return;
                 onOpenAssignStaff(t);
               }}
             >

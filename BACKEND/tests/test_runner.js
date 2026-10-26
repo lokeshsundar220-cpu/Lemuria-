@@ -104,10 +104,14 @@ async function runIntegrationSuite() {
       hkStaff = await Staff.findOne({
         $or: [{ role: 'HOUSEKEEPING' }, { department: { $in: ['HOUSEKEEPING', 'housekeeping'] } }],
         hotelId: grdHotel._id,
+        enabled: { $ne: false },
+        accountStatus: { $ne: 'DISABLED' },
         availability: 'AVAILABLE'
       }) || await Staff.findOne({
         $or: [{ role: 'HOUSEKEEPING' }, { department: { $in: ['HOUSEKEEPING', 'housekeeping'] } }],
-        hotelId: grdHotel._id
+        hotelId: grdHotel._id,
+        enabled: { $ne: false },
+        accountStatus: { $ne: 'DISABLED' }
       });
       if (!hkStaff) throw new Error('No housekeeping staff found in GRD');
 

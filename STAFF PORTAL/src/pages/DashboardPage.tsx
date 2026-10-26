@@ -356,9 +356,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
             {!t.assignedStaffId && onOpenAssignStaff ? (
               <button
-                className="btn sm gd"
+                className={`btn sm gd ${!on ? 'disabled' : ''}`}
+                style={!on ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                disabled={!on}
+                title={!on ? 'Start your duty before assigning tasks' : 'Assign staff'}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (!on) return;
                   onOpenAssignStaff(t);
                 }}
               >
@@ -378,9 +382,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         ) : isManagerRole && !t.assignedStaffId && onOpenAssignStaff ? (
           <div style={{ marginTop: '10px' }}>
             <button
-              className="btn sm gd"
+              className={`btn sm gd ${!on ? 'disabled' : ''}`}
+              style={!on ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              disabled={!on}
+              title={!on ? 'Start your duty before assigning tasks' : 'Assign staff'}
               onClick={(e) => {
                 e.stopPropagation();
+                if (!on) return;
                 onOpenAssignStaff(t);
               }}
             >

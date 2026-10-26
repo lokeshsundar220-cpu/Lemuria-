@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const taskController = require('../controllers/taskController');
-const { authenticate, authorizeRole, authorizeDepartment, requireOnDuty } = require('../middleware/auth');
+const { authenticate, authorizeRole, authorizeDepartment, authorizeManager, requireOnDuty } = require('../middleware/auth');
 
 router.use(authenticate);
 router.use(authorizeRole('STAFF'));
@@ -16,9 +16,9 @@ router.post('/offers/:offerId/accept', requireOnDuty, taskController.acceptOffer
 router.post('/offers/:offerId/decline', taskController.declineOffer);
 router.post('/offers/:offerId/timeout', taskController.timeoutOffer);
 
-// Task assignment (Manager/Reception only) & execution
-router.post('/:id/assign',  authorizeDepartment('MANAGER', 'RECEPTION'), taskController.assignTask);
-router.put('/:id/assign', authorizeDepartment('MANAGER', 'RECEPTION'), taskController.assignTask);
+// Task assignment (Manager only) & execution
+router.post('/:id/assign', authorizeManager, taskController.assignTask);
+router.put('/:id/assign', authorizeManager, taskController.assignTask);
 router.delete('/:id', authorizeDepartment('MANAGER'), taskController.deleteTask);
 router.post('/:id/start', requireOnDuty, taskController.startTask);
 router.put('/:id/start', requireOnDuty, taskController.startTask);

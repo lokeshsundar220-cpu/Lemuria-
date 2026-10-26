@@ -29,6 +29,7 @@ interface AssignStaffModalProps {
   }[];
   deptMap: Record<string, string>;
   busy: boolean;
+  managerOnDuty?: boolean;
   onClose: () => void;
   onAssign: (taskId: string, staffId: string) => void;
 }
@@ -38,6 +39,7 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
   allStaff,
   deptMap,
   busy,
+  managerOnDuty = true,
   onClose,
   onAssign
 }) => {
@@ -62,6 +64,7 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
 
   const handleAssignSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!managerOnDuty) return;
     if (!selectedStaffId) return;
     onAssign(task._id || task.id || '', selectedStaffId);
   };
@@ -75,6 +78,27 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
             TASK REQUIRES MANUAL ASSIGNMENT
           </h2>
         </div>
+
+        {!managerOnDuty ? (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              color: '#f87171',
+              fontSize: '13px',
+              fontWeight: 600,
+              margin: '10px 0 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <span>⚠️</span>
+            <span>You are currently OFF DUTY. Start your duty before assigning tasks.</span>
+          </div>
+        ) : null}
 
         <div
           style={{
@@ -197,10 +221,18 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
             </button>
             <button
               type="submit"
-              className="btn gd"
-              disabled={busy || !selectedStaffId}
+              className={`btn gd ${!managerOnDuty ? 'disabled' : ''}`}
+              disabled={busy || !selectedStaffId || !managerOnDuty}
+              title={!managerOnDuty ? 'Start your duty before assigning tasks' : 'Confirm manual staff assignment'}
               id="btn-confirm-assign-staff"
-              style={{ flex: '1 1 140px', minWidth: 0, maxWidth: '220px', fontWeight: 700 }}
+              style={{
+                flex: '1 1 140px',
+                minWidth: 0,
+                maxWidth: '220px',
+                fontWeight: 700,
+                opacity: !managerOnDuty ? 0.5 : undefined,
+                cursor: !managerOnDuty ? 'not-allowed' : undefined
+              }}
             >
               {busy ? <span className="spinner"></span> : null}
               {busy ? ' Assigning…' : 'ASSIGN STAFF'}

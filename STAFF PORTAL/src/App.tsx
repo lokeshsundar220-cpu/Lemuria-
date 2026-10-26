@@ -201,6 +201,24 @@ export const App: React.FC = () => {
     initSession();
   }, [loadBackendData]);
 
+  // Cleanly handle session expiration dispatched by API client
+  useEffect(() => {
+    const handleSessionExpired = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      console.warn('[App] Session expired event received:', customEvent?.detail);
+      setAuth(false);
+      setCurrentStaff(null);
+      setOffers([]);
+      setLand(false);
+      showToast('Your session has expired. Please log in again.');
+    };
+
+    window.addEventListener('lemuria:session_expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('lemuria:session_expired', handleSessionExpired);
+    };
+  }, []);
+
   const seenOfferIdsRef = useRef<Set<string>>(new Set());
 
   // Safe wrapper to prevent any single API failure from crashing the entire polling cycle
@@ -266,13 +284,20 @@ export const App: React.FC = () => {
       isSlowPolling = true;
 
       try {
+        const isReceptionOrManager =
+          (currentStaff?.department || '').toLowerCase() === 'reception' ||
+          (currentStaff?.department || '').toLowerCase() === 'manager' ||
+          currentStaff?.role === 'MANAGER';
+
         const [latestTasks, latestNotes, latestEmg, latestRooms, latestStaff, latestArrivals] = await Promise.all([
           safePoll(() => api.fetchTasks(), [] as TaskItem[], 'fetchTasks'),
           safePoll(() => api.fetchNotifications(), [] as NotificationItem[], 'fetchNotifications'),
           safePoll(() => api.fetchActiveEmergencies(), [] as EmergencyItem[], 'fetchActiveEmergencies'),
           safePoll(() => api.fetchRooms(), [] as RoomItem[], 'fetchRooms'),
           safePoll(() => api.fetchAllStaff(), [] as StaffMember[], 'fetchAllStaff'),
-          safePoll(() => api.fetchArrivals(), [] as ArrivalItem[], 'fetchArrivals')
+          isReceptionOrManager
+            ? safePoll(() => api.fetchArrivals(), [] as ArrivalItem[], 'fetchArrivals')
+            : Promise.resolve([] as ArrivalItem[])
         ]);
 
         if (!isSubscribed) return;
@@ -404,7 +429,21 @@ export const App: React.FC = () => {
   };
 
   const handleDutyToggle = async () => {
+    // Prevent duplicate duty submissions while a request is pending
+    if (busy) return;
     if (!currentStaff) return;
+
+    // Verify authenticated session before submitting request
+    const token = api.getAuthToken();
+    if (!token) {
+      showToast('Authentication token required. Please log in again.');
+      api.clearAuthSession();
+      setAuth(false);
+      setCurrentStaff(null);
+      setLand(false);
+      return;
+    }
+
     const nextState = currentStaff.duty === 'OFF' ? 'ON' : 'OFF';
 
     const activeOffer = offers[0];
@@ -425,9 +464,11 @@ export const App: React.FC = () => {
         showToast('Duty shift ended. Status set to OFF DUTY.');
       }
 
+      // Only update local UI state when backend successfully confirms duty update
       setCurrentStaff((prev) => (prev ? { ...prev, duty: updated.duty, availability: updated.availability } : prev));
       await loadBackendData();
     } catch (err: unknown) {
+      // Failed request must not falsely update UI duty state
       showToast('Failed to change duty: ' + (err as Error).message);
     } finally {
       setBusy(false);
@@ -815,6 +856,11 @@ export const App: React.FC = () => {
   };
 
   const handleAssignStaff = async (taskId: string, staffId: string) => {
+    // Guard: manager must start duty before assigning tasks
+    if (currentStaff?.duty !== 'ON') {
+      showToast('Start your duty before assigning tasks');
+      return;
+    }
     setBusy(true);
     setBusyMsg('Assigning task to staff…');
     try {
@@ -1223,6 +1269,7 @@ export const App: React.FC = () => {
           allStaff={staff}
           deptMap={DEPARTMENTS}
           busy={busy}
+          managerOnDuty={currentStaff?.duty === 'ON'}
           onClose={() => setActiveModal(null)}
           onAssign={handleAssignStaff}
         />

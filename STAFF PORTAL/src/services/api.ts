@@ -206,29 +206,96 @@ export interface AttendanceItem {
   tasksCompleted?: number;
 }
 
-// Token management in LocalStorage
+// In-memory token & session cache for resilience across transient storage wipes
+let inMemoryToken: string | null = null;
+let inMemoryStaff: StaffMember | null = null;
+
+// Token management with Multi-Storage & In-Memory fallback
 export const getAuthToken = (): string | null => {
-  return localStorage.getItem('lemuria_staff_token');
+  if (inMemoryToken) return inMemoryToken;
+  try {
+    const lsToken = localStorage.getItem('lemuria_staff_token');
+    if (lsToken && lsToken.trim()) {
+      inMemoryToken = lsToken.trim();
+      return inMemoryToken;
+    }
+  } catch {
+    // Ignore storage restrictions
+  }
+  try {
+    const ssToken = sessionStorage.getItem('lemuria_staff_token');
+    if (ssToken && ssToken.trim()) {
+      inMemoryToken = ssToken.trim();
+      return inMemoryToken;
+    }
+  } catch {
+    // Ignore storage restrictions
+  }
+  return null;
 };
 
 export const setAuthSession = (token: string, staff: StaffMember): void => {
-  localStorage.setItem('lemuria_staff_token', token);
-  localStorage.setItem('lemuria_staff_user', JSON.stringify(staff));
+  const cleanToken = (token || '').trim();
+  inMemoryToken = cleanToken;
+  inMemoryStaff = staff;
+  try {
+    localStorage.setItem('lemuria_staff_token', cleanToken);
+    localStorage.setItem('lemuria_staff_user', JSON.stringify(staff));
+  } catch {
+    // Ignore storage quota/restrictions
+  }
+  try {
+    sessionStorage.setItem('lemuria_staff_token', cleanToken);
+    sessionStorage.setItem('lemuria_staff_user', JSON.stringify(staff));
+  } catch {
+    // Ignore storage quota/restrictions
+  }
+};
+
+export const updateSavedStaffSession = (staffUpdates: Partial<StaffMember>): void => {
+  const current = getSavedStaffSession() || inMemoryStaff;
+  if (!current) return;
+  const updated = { ...current, ...staffUpdates };
+  inMemoryStaff = updated;
+  try {
+    localStorage.setItem('lemuria_staff_user', JSON.stringify(updated));
+  } catch {
+    // Ignore
+  }
+  try {
+    sessionStorage.setItem('lemuria_staff_user', JSON.stringify(updated));
+  } catch {
+    // Ignore
+  }
 };
 
 export const getSavedStaffSession = (): StaffMember | null => {
-  const raw = localStorage.getItem('lemuria_staff_user');
-  if (!raw) return null;
+  if (inMemoryStaff) return inMemoryStaff;
   try {
-    return JSON.parse(raw);
+    const raw = localStorage.getItem('lemuria_staff_user') || sessionStorage.getItem('lemuria_staff_user');
+    if (!raw) return null;
+    inMemoryStaff = JSON.parse(raw);
+    return inMemoryStaff;
   } catch {
     return null;
   }
 };
 
 export const clearAuthSession = (): void => {
-  localStorage.removeItem('lemuria_staff_token');
-  localStorage.removeItem('lemuria_staff_user');
+  inMemoryToken = null;
+  inMemoryStaff = null;
+  try {
+    localStorage.removeItem('lemuria_staff_token');
+    localStorage.removeItem('lemuria_staff_user');
+  } catch {
+    // Ignore
+  }
+  try {
+    sessionStorage.removeItem('lemuria_staff_token');
+    sessionStorage.removeItem('lemuria_staff_user');
+  } catch {
+    // Ignore
+  }
 };
 
 // Generic HTTP request helper
@@ -236,7 +303,24 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const isAuthEndpoint = endpoint.startsWith('/auth/') || endpoint.includes('/auth/');
   const token = getAuthToken();
+
+  // If calling an authenticated endpoint without a token, reject before sending headerless request
+  if (!token && !isAuthEndpoint) {
+    clearAuthSession();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('lemuria:session_expired', {
+          detail: { message: 'Authentication token required. Please log in again.' }
+        })
+      );
+    }
+    const err = new Error('Authentication token required') as Error & { status?: number };
+    err.status = 401;
+    throw err;
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>)
@@ -255,8 +339,12 @@ async function request<T>(
 
   if (response.status === 401) {
     clearAuthSession();
-    if (!window.location.pathname.includes('/login')) {
-      // Allow caller to handle unauthorized redirect
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('lemuria:session_expired', {
+          detail: { endpoint, status: 401, message: 'Session expired or invalid. Please log in again.' }
+        })
+      );
     }
   }
 
@@ -347,8 +435,12 @@ export async function fetchMyProfile(): Promise<StaffMember> {
 // ==========================================
 
 export async function startDuty(): Promise<StaffMember> {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Authentication token required. Please log in again.');
+  }
   const staffData = await request<any>('/staff/duty/start', { method: 'POST' });
-  return {
+  const updatedMember: StaffMember = {
     id: staffData.staffCode || staffData.staffId || staffData._id,
     name: staffData.name || staffData.fullName,
     email: staffData.email,
@@ -362,11 +454,17 @@ export async function startDuty(): Promise<StaffMember> {
     dutyStartedAt: staffData.dutyStartedAt || staffData.shiftStartTime || new Date().toISOString(),
     lastAttendanceClosedReason: ''
   };
+  updateSavedStaffSession(updatedMember);
+  return updatedMember;
 }
 
 export async function endDuty(): Promise<StaffMember> {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Authentication token required. Please log in again.');
+  }
   const staffData = await request<any>('/staff/duty/end', { method: 'POST' });
-  return {
+  const updatedMember: StaffMember = {
     id: staffData.staffCode || staffData.staffId || staffData._id,
     name: staffData.name || staffData.fullName,
     email: staffData.email,
@@ -379,6 +477,8 @@ export async function endDuty(): Promise<StaffMember> {
     lastAttendanceClosedReason: staffData.lastAttendanceClosedReason || 'MANUAL',
     lastAttendanceClosedAt: staffData.lastAttendanceClosedAt || new Date().toISOString()
   };
+  updateSavedStaffSession(updatedMember);
+  return updatedMember;
 }
 
 export async function fetchMyAttendanceHistory(): Promise<AttendanceItem[]> {
