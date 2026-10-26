@@ -213,5 +213,8 @@ reservationSchema.virtual('specialRequests').get(function () {
 reservationSchema.index({ hotelId: 1, status: 1 });
 reservationSchema.index({ roomId: 1, checkInDate: 1, checkOutDate: 1, status: 1 });
 reservationSchema.index({ guestId: 1, status: 1 });
+reservationSchema.index({ hotelId: 1, checkInDate: 1 });
+reservationSchema.index({ hotelId: 1, status: 1, checkInDate: 1 });
 
 module.exports = mongoose.model('Reservation', reservationSchema, 'reservations');
+

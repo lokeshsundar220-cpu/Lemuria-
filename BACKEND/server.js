@@ -69,6 +69,18 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
+// Performance tracking: flag any request taking over 1000ms
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (duration > 1000) {
+      console.warn(`[Slow Request Warning] ${req.method} ${req.originalUrl} took ${duration}ms (status: ${res.statusCode})`);
+    }
+  });
+  next();
+});
+
 // API Routes
 app.use('/api', apiRoutes);
 
@@ -89,6 +101,7 @@ app.use(errorHandler);
 let server = null;
 
 const attendanceService = require('./src/services/attendanceService');
+const taskService = require('./src/services/taskService');
 
 // Server startup & Database initialization
 const startServer = async () => {
@@ -97,6 +110,9 @@ const startServer = async () => {
 
     // Start 11:59 PM attendance auto-closure scheduler & catch-up
     attendanceService.initAttendanceScheduler();
+
+    // Start background task offer expiry & auto-redispatch scheduler
+    taskService.initOfferExpiryScheduler();
 
     if (process.env.NODE_ENV !== 'test') {
       server = app.listen(PORT, () => {
@@ -119,6 +135,7 @@ const startServer = async () => {
 const handleShutdown = async () => {
   console.log('\n[Graceful Shutdown] Closing HTTP server and MongoDB connection...');
   attendanceService.stopAttendanceScheduler();
+  taskService.stopOfferExpiryScheduler();
   if (server) {
     server.close(() => {
       console.log('[Server] HTTP server closed.');

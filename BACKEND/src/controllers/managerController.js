@@ -106,10 +106,17 @@ const getAllStaff = async (req, res, next) => {
     else if (accountStatus === 'ENABLED' || enabled === 'true' || enabled === true) query.enabled = true;
 
     const staffList = await Staff.find(query)
+      .select('-passwordHash')
       .populate('currentTaskId')
-      .sort({ department: 1, name: 1 });
+      .sort({ department: 1, name: 1 })
+      .lean();
 
-    return successResponse(res, 200, 'Staff list retrieved', staffList);
+    const formatted = staffList.map((s) => ({
+      ...s,
+      id: s.staffCode || s.staffId || s._id
+    }));
+
+    return successResponse(res, 200, 'Staff list retrieved', formatted);
   } catch (error) {
     return next(error);
   }
@@ -250,11 +257,12 @@ const getStaffWorkload = async (req, res, next) => {
     const onDutyStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }], $or: [{ duty: { $in: ['ON', 'ON_DUTY'] } }, { dutyStatus: { $in: ['ON', 'ON_DUTY'] } }], enabled: { $ne: false } });
     const busyStaff = await Staff.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }, { hotelAccess: hotelId }], availability: 'BUSY', enabled: { $ne: false } });
 
-    const activeTasks = await Task.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], status: { $in: ['ACCEPTED', 'IN_PROGRESS'] } });
-    const pendingTasks = await Task.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], status: { $in: ['PENDING', 'OFFERED'] } });
+    const activeTasks = await Task.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], status: { $in: ['ACCEPTED', 'IN_PROGRESS'] }, isDeleted: { $ne: true } });
+    const pendingTasks = await Task.countDocuments({ $or: [{ hotelId }, { hotel: hotelId }], status: { $in: ['PENDING', 'OFFERED'] }, isDeleted: { $ne: true } });
     const completedTasksToday = await Task.countDocuments({
       $or: [{ hotelId }, { hotel: hotelId }],
       status: 'COMPLETED',
+      isDeleted: { $ne: true },
       completedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
     });
 

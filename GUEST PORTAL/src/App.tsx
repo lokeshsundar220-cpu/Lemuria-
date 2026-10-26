@@ -112,37 +112,40 @@ export const App: React.FC = () => {
   }, []);
 
   // Fetch logged-in guest data (reservations, requests, notifications)
-  const loadGuestData = useCallback(async () => {
+  const loadGuestData = useCallback(async (includeProfile = false) => {
     const token = getStoredToken();
     if (!token) return;
 
     try {
-      // Profile check
-      const profile = await api.auth.getCurrentProfile();
-      if (profile?.user) {
-        setUser(profile.user);
+      const [profileRes, bookings, reqList, noteData] = await Promise.all([
+        includeProfile ? api.auth.getCurrentProfile().catch(() => null) : Promise.resolve(null),
+        api.reservations.getMyBookings().catch(() => []),
+        api.services.getMyRequests().catch(() => []),
+        api.notifications.getMyNotifications().catch(() => ({ notifications: [], unreadCount: 0 }))
+      ]);
+
+      if (profileRes?.user) {
+        setUser(profileRes.user);
       }
 
-      // Reservations
-      const bookings = await api.reservations.getMyBookings();
-      if (bookings.length > 0) {
+      if (bookings && bookings.length > 0) {
         // Active or pending reservation takes priority, otherwise most recent
-        const activeStay = bookings.find((b) => b.status === 'CHECKED_IN');
-        const pendingStay = bookings.find((b) => b.status === 'CHECK_IN_PENDING');
-        const bookedStay = bookings.find((b) => b.status === 'BOOKED');
+        const activeStay = bookings.find((b: any) => b.status === 'CHECKED_IN');
+        const pendingStay = bookings.find((b: any) => b.status === 'CHECK_IN_PENDING');
+        const bookedStay = bookings.find((b: any) => b.status === 'BOOKED');
         const latestBooking = activeStay || pendingStay || bookedStay || bookings[0];
         setReservation(latestBooking);
-      } else {
+      } else if (bookings) {
         setReservation(null);
       }
 
-      // Service Requests
-      const reqList = await api.services.getMyRequests();
-      setRequests(reqList);
+      if (reqList) {
+        setRequests(reqList);
+      }
 
-      // Notifications
-      const noteData = await api.notifications.getMyNotifications();
-      setNotifications(noteData.notifications);
+      if (noteData?.notifications) {
+        setNotifications(noteData.notifications);
+      }
     } catch {
       // User might be unauthorized or network failed
     }
@@ -152,17 +155,38 @@ export const App: React.FC = () => {
   useEffect(() => {
     loadHotelData();
     if (getStoredToken()) {
-      loadGuestData();
+      loadGuestData(true);
     }
   }, [loadHotelData, loadGuestData]);
 
-  // Periodic polling for real-time sync with staff actions
+  // Periodic polling for real-time sync with staff actions (visibility-aware)
   useEffect(() => {
     if (!user) return;
-    const interval = setInterval(() => {
-      loadGuestData();
-    }, 4500);
-    return () => clearInterval(interval);
+
+    let isPolling = false;
+    const poll = async () => {
+      if (document.hidden || isPolling) return;
+      isPolling = true;
+      try {
+        await loadGuestData(false);
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    const interval = setInterval(poll, 8000);
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        poll();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [user, loadGuestData]);
 
   // Hash-based routing listener

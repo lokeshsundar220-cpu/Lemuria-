@@ -125,6 +125,10 @@ export interface TaskItem {
   acceptedAt: number | null;
   startedAt: number | null;
   completedAt: number | null;
+  isDeleted?: boolean;
+  deletedAt?: number | null;
+  deletedBy?: string | null;
+  deleteReason?: string;
   beforeImage?: string | null;
   afterImage?: string | null;
   feedback: string;
@@ -609,6 +613,13 @@ export async function completeTask(
   });
 }
 
+export async function deleteTask(taskId: string, reason?: string): Promise<any> {
+  return await request<any>(`/manager/tasks/${taskId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason })
+  });
+}
+
 // ==========================================
 // ROOMS & ARRIVALS APIs
 // ==========================================
@@ -648,7 +659,16 @@ export async function fetchArrivals(): Promise<ArrivalItem[]> {
     id: res._id,
     guest: res.guestId?.name || res.guestId?.fullName || 'Guest',
     room: res.roomNumber || res.roomId?.roomNumber || '—',
-    status: res.status === 'CHECKED_IN' ? 'CHECKED IN' : (res.status === 'CHECK_IN_PENDING' ? 'CHECK IN PENDING' : 'EXPECTED'),
+    status:
+      res.status === 'CHECKED_IN'
+        ? 'CHECKED IN'
+        : res.status === 'CHECK_IN_PENDING'
+        ? 'CHECK IN PENDING'
+        : res.status === 'CHECKED_OUT'
+        ? 'CHECKED OUT'
+        : res.status === 'CANCELLED'
+        ? 'CANCELLED'
+        : 'EXPECTED',
     resId: res.reservationCode || String(res._id),
     phone: res.guestId?.mobile || res.guestId?.phone || '+91 98765 00000',
     email: res.guestId?.email || 'guest@example.com',
@@ -699,6 +719,17 @@ export async function fetchHotelStaff(): Promise<StaffMember[]> {
 }
 
 export async function fetchAllStaff(): Promise<StaffMember[]> {
+  const current = getSavedStaffSession();
+  const isManager = current && (
+    current.role === 'MANAGER' ||
+    current.department === 'manager' ||
+    (current.role && current.role.toUpperCase() === 'MANAGER')
+  );
+
+  if (!isManager) {
+    return await fetchHotelStaff();
+  }
+
   try {
     const rawStaff = await request<any[]>('/manager/staff');
     return rawStaff.map((s) => ({
@@ -722,6 +753,7 @@ export async function fetchAllStaff(): Promise<StaffMember[]> {
     return await fetchHotelStaff();
   }
 }
+
 
 export async function createStaffMember(data: {
   name: string;
@@ -776,15 +808,17 @@ export async function setStaffStatus(id: string, status: string): Promise<any> {
 
 export async function fetchServiceRequests(): Promise<RequestItem[]> {
   const raw = await request<any[]>('/service-requests/department');
-  return raw.map((r) => ({
-    id: r.requestCode || r._id,
-    _id: r._id,
-    department: (r.department || 'housekeeping').toLowerCase(),
-    room: r.roomNumber || '—',
-    text: r.description || r.requestType || '',
-    status: r.status,
-    at: new Date(r.createdAt).getTime()
-  }));
+  return raw
+    .filter((r) => !['CANCELLED_AFTER_CHECKOUT', 'CLOSED_AFTER_CHECKOUT', 'CANCELLED'].includes(r.status))
+    .map((r) => ({
+      id: r.requestCode || r._id,
+      _id: r._id,
+      department: (r.department || 'housekeeping').toLowerCase(),
+      room: r.roomNumber || '—',
+      text: r.description || r.requestType || '',
+      status: r.status,
+      at: new Date(r.createdAt).getTime()
+    }));
 }
 
 export async function createServiceRequest(reqData: {

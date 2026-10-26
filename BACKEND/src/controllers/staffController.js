@@ -12,8 +12,17 @@ const getHotelStaff = async (req, res, next) => {
     const hotelId = req.staff.hotelId?._id || req.staff.hotelId;
     const staffList = await Staff.find({
       $or: [{ hotelId }, { hotel: hotelId }]
-    }).sort({ department: 1, name: 1 });
-    return successResponse(res, 200, 'Hotel staff retrieved', staffList);
+    })
+      .select('-passwordHash')
+      .sort({ department: 1, name: 1 })
+      .lean();
+
+    const formatted = staffList.map((s) => ({
+      ...s,
+      id: s.staffCode || s.staffId || s._id
+    }));
+
+    return successResponse(res, 200, 'Hotel staff retrieved', formatted);
   } catch (error) {
     return next(error);
   }

@@ -17,8 +17,9 @@ router.post('/offers/:offerId/decline', taskController.declineOffer);
 router.post('/offers/:offerId/timeout', taskController.timeoutOffer);
 
 // Task assignment (Manager/Reception only) & execution
-router.post('/:id/assign', authorizeDepartment('MANAGER', 'RECEPTION'), taskController.assignTask);
+router.post('/:id/assign',  authorizeDepartment('MANAGER', 'RECEPTION'), taskController.assignTask);
 router.put('/:id/assign', authorizeDepartment('MANAGER', 'RECEPTION'), taskController.assignTask);
+router.delete('/:id', authorizeDepartment('MANAGER'), taskController.deleteTask);
 router.post('/:id/start', requireOnDuty, taskController.startTask);
 router.put('/:id/start', requireOnDuty, taskController.startTask);
 router.post('/:id/complete', requireOnDuty, taskController.completeTask);

@@ -68,5 +68,9 @@ taskOfferSchema.virtual('staff').get(function () {
 });
 
 taskOfferSchema.index({ hotelId: 1, staffId: 1, status: 1 });
+taskOfferSchema.index({ status: 1, expiresAt: 1 });
+taskOfferSchema.index({ staffId: 1, status: 1, expiresAt: 1 });
+taskOfferSchema.index({ taskId: 1, status: 1 });
 
 module.exports = mongoose.model('TaskOffer', taskOfferSchema, 'taskOffers');
+

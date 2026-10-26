@@ -52,7 +52,12 @@ export const TaskOfferModal: React.FC<TaskOfferModalProps> = ({
     return () => clearInterval(timer);
   }, [offer.expiresAt]);
 
-  const progressPercent = Math.min(100, Math.max(0, (timeLeft / 15) * 100));
+  const [totalWindow] = useState(() => {
+    const diff = Math.max(1, Math.ceil((offer.expiresAt - Date.now()) / 1000));
+    return Math.max(diff, 60);
+  });
+
+  const progressPercent = Math.min(100, Math.max(0, (timeLeft / totalWindow) * 100));
   const roomDisplay = task.roomNumber || task.roomId;
   const deptDisplay = (task.department || 'OPERATIONS').toUpperCase();
 

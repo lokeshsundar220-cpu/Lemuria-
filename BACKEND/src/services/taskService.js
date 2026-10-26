@@ -97,8 +97,12 @@ class TaskService {
   async offerTask(taskId, staffId) {
     const task = await findTaskDoc(taskId);
     if (!task) throw new Error('Task not found');
+    if (task.status === 'DELETED' || task.isDeleted) {
+      return null;
+    }
 
-    const offerWindowMs = 15 * 1000;
+    const offerTimeoutSec = parseInt(process.env.TASK_OFFER_TIMEOUT_SECONDS || process.env.TASK_OFFER_TIMEOUT || '60', 10);
+    const offerWindowMs = (offerTimeoutSec > 0 ? offerTimeoutSec : 60) * 1000;
     const expiresAt = new Date(Date.now() + offerWindowMs);
 
     const offer = await TaskOffer.create({
@@ -141,7 +145,6 @@ class TaskService {
     return offer;
   }
 
-
   async offerTaskToNextEligibleStaff(taskId) {
     const task = await findTaskDoc(taskId);
     if (!task) {
@@ -149,10 +152,27 @@ class TaskService {
       return null;
     }
 
-    if (['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(task.status)) {
+    if (['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'DELETED'].includes(task.status) || task.isDeleted) {
       console.log(`[TaskDispatcher] Task ${task.taskCode} status is ${task.status}. Skipping dispatch.`);
       return null;
     }
+
+    // Idempotency: avoid creating concurrent duplicate offers for the same task
+    const existingActiveOffer = await TaskOffer.findOne({
+      taskId: task._id,
+      status: 'OFFERED',
+      expiresAt: { $gt: new Date() }
+    });
+    if (existingActiveOffer) {
+      console.log(`[TaskDispatcher] Task ${task.taskCode} already has an active offer ${existingActiveOffer._id}. Skipping duplicate dispatch.`);
+      return existingActiveOffer;
+    }
+
+    // Clean up any expired offers for this task before offering to next candidate
+    await TaskOffer.updateMany(
+      { taskId: task._id, status: 'OFFERED', expiresAt: { $lte: new Date() } },
+      { status: 'TIMEOUT', respondedAt: new Date() }
+    );
 
     const deptMatch = (task.department === 'FOOD_AND_BEVERAGE' || task.department === 'fnb')
       ? ['FNB', 'FOOD_AND_BEVERAGE', 'fnb', 'food_and_beverage']
@@ -262,6 +282,7 @@ class TaskService {
       $or: [{ hotelId }, { hotel: hotelId }],
       department: { $in: deptMatch },
       status: { $in: ['PENDING', 'ESCALATED'] },
+      isDeleted: { $ne: true },
       assignedStaffId: null,
       _id: { $nin: activeOfferTaskIds }
     }).sort({ priority: -1, createdAt: 1 });
@@ -297,8 +318,8 @@ class TaskService {
       offer.respondedAt = new Date();
       await offer.save();
 
-      await this.offerTaskToNextEligibleStaff(offer.taskId);
-      throw new Error('Task offer expired (15 second window exceeded)');
+      const durationSec = Math.max(1, Math.round(((offer.expiresAt || new Date()) - (offer.offeredAt || new Date())) / 1000));
+      throw new Error(`Task offer expired (${durationSec} second window exceeded)`);
     }
 
     const staff = await findStaffDoc(staffId);
@@ -688,7 +709,7 @@ class TaskService {
       console.warn('[TaskService] Error checking expired offers:', err.message);
     }
 
-    // 2. Trigger dispatch for pending tasks if staff is on-duty and available (isolated)
+    // 2. Trigger dispatch for pending tasks if staff is on-duty, available, and pending tasks exist (isolated)
     let staff = null;
     try {
       staff = await findStaffDoc(staffId);
@@ -700,7 +721,16 @@ class TaskService {
         (staff.enabled !== false && staff.accountStatus !== 'DISABLED')
       ) {
         const targetHotelId = staff.hotelId?._id || staff.hotelId || staff.hotel;
-        await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
+        const deptVariants = [String(staff.department).toUpperCase(), String(staff.department).toLowerCase()];
+        const hasPendingTask = await Task.exists({
+          hotelId: targetHotelId,
+          department: { $in: deptVariants },
+          status: 'PENDING',
+          isDeleted: { $ne: true }
+        });
+        if (hasPendingTask) {
+          await this.dispatchPendingTasksForHotelDepartment(targetHotelId, staff.department);
+        }
       }
     } catch (err) {
       console.warn('[TaskService] Isolated error in staff dispatch check:', err.message);
@@ -710,31 +740,61 @@ class TaskService {
     try {
       const resolvedStaffId = staff ? staff._id : staffId;
 
-      const pendingOffers = await TaskOffer.find({
+      const rawOffers = await TaskOffer.find({
         staffId: resolvedStaffId,
         status: 'OFFERED',
         expiresAt: { $gt: now }
-      }).populate('taskId');
+      })
+        .populate('taskId')
+        .lean();
 
-      const activeTasks = await Task.find({
+      const pendingOffers = (rawOffers || [])
+        .filter((o) => o.taskId && !o.taskId.isDeleted && o.taskId.status !== 'DELETED')
+        .map((o) => ({
+          ...o,
+          id: o._id,
+          task: o.taskId,
+          taskId: o.taskId
+        }));
+
+      const rawActiveTasks = await Task.find({
         $or: [
           { assignedStaffId: resolvedStaffId },
           { assignedStaff: resolvedStaffId },
           { assignedStaffId: staffId },
           { assignedStaff: staffId }
         ],
-        status: { $in: ['ACCEPTED', 'IN_PROGRESS'] }
-      }).populate('roomId').populate('hotelId');
+        status: { $in: ['ACCEPTED', 'IN_PROGRESS'] },
+        isDeleted: { $ne: true }
+      })
+        .populate('roomId', 'roomNumber room floor type')
+        .populate('hotelId', 'name code hotelCode')
+        .lean();
 
-      const completedTasks = await Task.find({
+      const activeTasks = (rawActiveTasks || []).map((t) => ({
+        ...t,
+        id: t._id
+      }));
+
+      const rawCompletedTasks = await Task.find({
         $or: [
           { assignedStaffId: resolvedStaffId },
           { assignedStaff: resolvedStaffId },
           { assignedStaffId: staffId },
           { assignedStaff: staffId }
         ],
-        status: 'COMPLETED'
-      }).populate('roomId').sort({ completedAt: -1 }).limit(20);
+        status: 'COMPLETED',
+        isDeleted: { $ne: true }
+      })
+        .populate('roomId', 'roomNumber room floor type')
+        .sort({ completedAt: -1 })
+        .limit(20)
+        .lean();
+
+      const completedTasks = (rawCompletedTasks || []).map((t) => ({
+        ...t,
+        id: t._id
+      }));
 
       return {
         pendingOffers: pendingOffers || [],
@@ -748,6 +808,104 @@ class TaskService {
         activeTasks: [],
         completedTasks: []
       };
+    }
+  }
+
+  async deleteTask(taskId, managerStaff, reason = '') {
+    const task = await findTaskDoc(taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Verify hotel isolation
+    const managerHotelId = String(managerStaff.hotelId?._id || managerStaff.hotelId || managerStaff.hotel || '');
+    const taskHotelId = String(task.hotelId?._id || task.hotelId || task.hotel || '');
+    if (managerHotelId && taskHotelId && managerHotelId !== taskHotelId) {
+      throw new Error('Unauthorized: Cannot delete task from another hotel property');
+    }
+
+    // Cancel any active offers
+    await TaskOffer.updateMany(
+      { taskId: task._id, status: 'OFFERED' },
+      { status: 'CANCELLED', respondedAt: new Date() }
+    );
+
+    // If task was in progress, release assigned staff
+    const assignedStaffId = task.assignedStaffId || task.assignedStaff;
+    if (assignedStaffId && ['OFFERED', 'ACCEPTED', 'IN_PROGRESS'].includes(task.status)) {
+      const staffDoc = await findStaffDoc(assignedStaffId);
+      if (staffDoc && String(staffDoc.currentTaskId) === String(task._id)) {
+        staffDoc.currentTaskId = null;
+        staffDoc.availability = 'AVAILABLE';
+        await staffDoc.save();
+      }
+    }
+
+    // Soft delete task - preserve original completion details if it was completed
+    const previousStatus = task.status;
+    task.isDeleted = true;
+    task.status = 'DELETED';
+    task.deletedAt = new Date();
+    task.deletedBy = managerStaff._id || managerStaff.id;
+    task.deleteReason = reason || 'Deleted by manager';
+    await task.save();
+
+    // Audit log
+    try {
+      await AuditLog.create({
+        performedBy: (managerStaff._id && mongoose.Types.ObjectId.isValid(managerStaff._id)) ? managerStaff._id : null,
+        action: 'TASK_DELETED',
+        entityType: 'Task',
+        entityId: String(task._id),
+        details: {
+          taskId: String(task._id),
+          taskCode: task.taskCode || task.taskNumber,
+          roomNumber: task.roomNumber,
+          department: task.department,
+          previousStatus,
+          reason: task.deleteReason,
+          hotelId: task.hotelId,
+          completedAt: task.completedAt || null
+        }
+      });
+    } catch (auditErr) {
+      console.warn('[TaskService] Failed to create audit log for task deletion:', auditErr.message);
+    }
+
+    return task;
+  }
+
+  initOfferExpiryScheduler() {
+    if (this._expiryInterval) return;
+    this._expiryInterval = setInterval(async () => {
+      try {
+        const now = new Date();
+        const expiredOffers = await TaskOffer.find({
+          status: 'OFFERED',
+          expiresAt: { $lt: now }
+        });
+        for (const exp of expiredOffers) {
+          try {
+            exp.status = 'TIMEOUT';
+            exp.respondedAt = now;
+            await exp.save();
+            console.log(`[TaskDispatcher] Background job timed out offer ${exp._id}. Re-dispatching task ${exp.taskId}...`);
+            await this.offerTaskToNextEligibleStaff(exp.taskId);
+          } catch (subErr) {
+            console.warn('[TaskService] Expiry interval sub-error:', subErr.message);
+          }
+        }
+      } catch (err) {
+        console.warn('[TaskService] Expiry interval error:', err.message);
+      }
+    }, 5000);
+    if (this._expiryInterval.unref) this._expiryInterval.unref();
+  }
+
+  stopOfferExpiryScheduler() {
+    if (this._expiryInterval) {
+      clearInterval(this._expiryInterval);
+      this._expiryInterval = null;
     }
   }
 }

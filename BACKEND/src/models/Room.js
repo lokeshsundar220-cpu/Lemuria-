@@ -23,7 +23,7 @@ const roomSchema = new mongoose.Schema(
     },
     state: {
       type: String,
-      enum: ['AVAILABLE', 'OCCUPIED', 'CLEANING_REQUIRED', 'OUT_OF_SERVICE', 'INSPECTED', 'MAINTENANCE'],
+      enum: ['AVAILABLE', 'OCCUPIED', 'CLEANING_REQUIRED', 'OUT_OF_SERVICE', 'INSPECTED', 'MAINTENANCE', 'READY'],
       default: 'AVAILABLE'
     },
     floor: {
@@ -90,5 +90,7 @@ roomSchema.virtual('status').get(function () {
 
 roomSchema.index({ hotelId: 1, roomNumber: 1 }, { unique: true });
 roomSchema.index({ hotelId: 1, state: 1 });
+roomSchema.index({ hotelId: 1, floor: 1, roomNumber: 1 });
 
 module.exports = mongoose.model('Room', roomSchema, 'rooms');
+

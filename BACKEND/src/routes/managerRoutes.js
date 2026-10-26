@@ -19,6 +19,7 @@ router.delete('/staff/:id', managerController.deleteStaff);
 // Workload metrics & Task assignment
 router.get('/workload', managerController.getStaffWorkload);
 router.post('/tasks/:id/assign', taskController.assignTask);
+router.delete('/tasks/:id', taskController.deleteTask);
 
 // Staff Attendance History for Manager
 router.get('/attendance', managerController.getHotelAttendance);

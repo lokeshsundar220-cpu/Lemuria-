@@ -12,6 +12,7 @@ import { AddFeedbackModal } from './components/AddFeedbackModal';
 import { EmergencyModal } from './components/EmergencyModal';
 import { VerifyGuestModal } from './components/VerifyGuestModal';
 import { AssignStaffModal } from './components/AssignStaffModal';
+import { DeleteTaskModal } from './components/DeleteTaskModal';
 
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
@@ -105,6 +106,7 @@ export const App: React.FC = () => {
   const [notes, setNotes] = useState<NotificationItem[]>([]);
   const [emergencies, setEmergencies] = useState<EmergencyItem[]>([]);
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [taskToDelete, setTaskToDelete] = useState<any | null>(null);
 
   const toastTimeoutRef = useRef<number | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -216,89 +218,133 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Periodic polling for task offers, emergencies, notifications, staff status, and task status
+  // Tiered, visibility-aware polling for offers, emergencies, notifications, staff status, and task status
   useEffect(() => {
     if (!auth) return;
 
     let isSubscribed = true;
+    let isFastPolling = false;
+    let isSlowPolling = false;
 
-    const poll = async () => {
-      if (!isSubscribed) return;
+    // 1. Fast Tier: Personal task offers & my active assignments (5s when visible)
+    const pollFast = async () => {
+      if (!isSubscribed || isFastPolling) return;
+      isFastPolling = true;
 
-      // 1. Fetch personal task offers & my active assignments independently
-      const myData = await safePoll(
-        () => api.fetchMyTasksAndOffers(),
-        { pendingOffers: [], activeTasks: [], completedTasks: [] },
-        'fetchMyTasksAndOffers'
-      );
-      if (!isSubscribed) return;
+      try {
+        const myData = await safePoll(
+          () => api.fetchMyTasksAndOffers(),
+          { pendingOffers: [], activeTasks: [], completedTasks: [] },
+          'fetchMyTasksAndOffers'
+        );
+        if (!isSubscribed) return;
 
-      const now = Date.now();
-      const validOffers = (myData.pendingOffers || []).filter((o) => o.expiresAt > now);
+        const now = Date.now();
+        const validOffers = (myData.pendingOffers || []).filter((o) => o.expiresAt > now);
 
-      let hasNewOffer = false;
-      for (const off of validOffers) {
-        if (!seenOfferIdsRef.current.has(off.id)) {
-          seenOfferIdsRef.current.add(off.id);
-          hasNewOffer = true;
-        }
-      }
-
-      if (hasNewOffer) {
-        beep();
-      }
-
-      setOffers(validOffers);
-
-      // 2. Fetch tasks, notifications, emergencies, rooms, and staff independently
-      const [latestTasks, latestNotes, latestEmg, latestRooms, latestStaff] = await Promise.all([
-        safePoll(() => api.fetchTasks(), [] as TaskItem[], 'fetchTasks'),
-        safePoll(() => api.fetchNotifications(), [] as NotificationItem[], 'fetchNotifications'),
-        safePoll(() => api.fetchActiveEmergencies(), [] as EmergencyItem[], 'fetchActiveEmergencies'),
-        safePoll(() => api.fetchRooms(), [] as RoomItem[], 'fetchRooms'),
-        safePoll(() => api.fetchAllStaff(), [] as StaffMember[], 'fetchAllStaff')
-      ]);
-
-      if (!isSubscribed) return;
-
-      console.log(`[Polling] tasks fetched: ${latestTasks.length} | offers fetched: ${validOffers.length}`);
-
-      // Always update task list independently
-      setTasks(latestTasks);
-      setNotes(latestNotes);
-      setEmergencies(latestEmg);
-      if (latestRooms.length > 0) setRooms(latestRooms);
-      if (latestStaff.length > 0) {
-        setStaff(latestStaff);
-        // Sync current staff availability / currentTaskId in case of manager assignment
-        setCurrentStaff((prev) => {
-          if (!prev) return prev;
-          const me = latestStaff.find(
-            (s) => s.id === prev.id || s._id === prev._id || s.staffCode === prev.staffCode
-          );
-          if (me && (me.availability !== prev.availability || me.duty !== prev.duty || me.currentTaskId !== prev.currentTaskId)) {
-            return {
-              ...prev,
-              availability: me.availability,
-              duty: me.duty,
-              dutyStatus: me.dutyStatus,
-              currentTaskId: me.currentTaskId
-            };
+        let hasNewOffer = false;
+        for (const off of validOffers) {
+          if (!seenOfferIdsRef.current.has(off.id)) {
+            seenOfferIdsRef.current.add(off.id);
+            hasNewOffer = true;
           }
-          return prev;
-        });
+        }
+
+        if (hasNewOffer) {
+          beep();
+        }
+
+        setOffers(validOffers);
+      } finally {
+        isFastPolling = false;
       }
     };
 
-    // Initial poll immediately
-    poll();
+    // 2. Slow Tier: Global tasks, notifications, emergencies, rooms, staff, arrivals (15s when visible)
+    const pollSlow = async () => {
+      if (!isSubscribed || isSlowPolling) return;
+      isSlowPolling = true;
 
-    // 2-second interval for responsive real-time experience
-    const interval = setInterval(poll, 2000);
+      try {
+        const [latestTasks, latestNotes, latestEmg, latestRooms, latestStaff, latestArrivals] = await Promise.all([
+          safePoll(() => api.fetchTasks(), [] as TaskItem[], 'fetchTasks'),
+          safePoll(() => api.fetchNotifications(), [] as NotificationItem[], 'fetchNotifications'),
+          safePoll(() => api.fetchActiveEmergencies(), [] as EmergencyItem[], 'fetchActiveEmergencies'),
+          safePoll(() => api.fetchRooms(), [] as RoomItem[], 'fetchRooms'),
+          safePoll(() => api.fetchAllStaff(), [] as StaffMember[], 'fetchAllStaff'),
+          safePoll(() => api.fetchArrivals(), [] as ArrivalItem[], 'fetchArrivals')
+        ]);
+
+        if (!isSubscribed) return;
+
+        setTasks(latestTasks);
+        setNotes(latestNotes);
+        setEmergencies(latestEmg);
+        if (latestRooms.length > 0) setRooms(latestRooms);
+        if (latestArrivals.length > 0) setArrivals(latestArrivals);
+        if (latestStaff.length > 0) {
+          setStaff(latestStaff);
+          // Sync current staff availability / currentTaskId in case of manager assignment
+          setCurrentStaff((prev) => {
+            if (!prev) return prev;
+            const me = latestStaff.find(
+              (s) => s.id === prev.id || s._id === prev._id || s.staffCode === prev.staffCode
+            );
+            if (me && (me.availability !== prev.availability || me.duty !== prev.duty || me.currentTaskId !== prev.currentTaskId)) {
+              return {
+                ...prev,
+                availability: me.availability,
+                duty: me.duty,
+                dutyStatus: me.dutyStatus,
+                currentTaskId: me.currentTaskId
+              };
+            }
+            return prev;
+          });
+        }
+      } finally {
+        isSlowPolling = false;
+      }
+    };
+
+    // Initial polls immediately
+    pollFast();
+    pollSlow();
+
+    // Fast poll timer: 5s when visible, 30s when tab in background
+    let fastInterval = setInterval(() => {
+      if (document.hidden) return;
+      pollFast();
+    }, 5000);
+
+    // Slow poll timer: 15s when visible
+    let slowInterval = setInterval(() => {
+      if (document.hidden) return;
+      pollSlow();
+    }, 15000);
+
+    // Background throttle timer: 30s when tab is hidden
+    let bgInterval = setInterval(() => {
+      if (document.hidden) {
+        pollFast();
+      }
+    }, 30000);
+
+    // Visibility change handler: immediately refresh when switching back to tab
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        pollFast();
+        pollSlow();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isSubscribed = false;
-      clearInterval(interval);
+      clearInterval(fastInterval);
+      clearInterval(slowInterval);
+      clearInterval(bgInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [auth, safePoll]);
 
@@ -673,6 +719,27 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDeleteTask = (task: any) => {
+    setTaskToDelete(task);
+  };
+
+  const handleConfirmDeleteTask = async (reason: string) => {
+    if (!taskToDelete) return;
+    setBusy(true);
+    setBusyMsg('Soft-deleting task…');
+    try {
+      await api.deleteTask(taskToDelete._id || taskToDelete.id, reason);
+      showToast(`Task ${taskToDelete.taskCode || taskToDelete.id} soft-deleted`);
+      setTaskToDelete(null);
+      await loadBackendData();
+    } catch (err: unknown) {
+      showToast('Error deleting task: ' + (err as Error).message);
+    } finally {
+      setBusy(false);
+      setBusyMsg('');
+    }
+  };
+
   const handleLogRequest = async (
     targetDept: string,
     targetRoom: string,
@@ -942,6 +1009,7 @@ export const App: React.FC = () => {
               onOpenEmergencyDetail={(id) => setActiveModal({ type: 'detail', id })}
               onOpenVerifyModal={(id) => setActiveModal({ type: 'verify', id })}
               onSetManagerBoardDept={(d) => setManagerBoardDept(d)}
+              onDeleteTask={handleDeleteTask}
             />
           )}
 
@@ -972,6 +1040,7 @@ export const App: React.FC = () => {
               deptMap={DEPARTMENTS}
               userDept={currentStaff.department}
               onTaskClick={(id) => setActiveModal({ type: 'detail', id })}
+              onDeleteTask={handleDeleteTask}
             />
           )}
 
@@ -1083,9 +1152,11 @@ export const App: React.FC = () => {
              tasks.find((t) => t.id === activeModal.id || t._id === activeModal.id)?.assignedStaffId === currentStaff._id)
           }
 
+          isManager={isManager}
           onClose={() => setActiveModal(null)}
           onStartTask={handleStartTask}
           onOpenComplete={(id) => setActiveModal({ type: 'done', id })}
+          onDeleteTask={handleDeleteTask}
         />
       )}
 
@@ -1154,6 +1225,15 @@ export const App: React.FC = () => {
           busy={busy}
           onClose={() => setActiveModal(null)}
           onAssign={handleAssignStaff}
+        />
+      )}
+
+      {taskToDelete && (
+        <DeleteTaskModal
+          task={taskToDelete}
+          busy={busy}
+          onConfirm={handleConfirmDeleteTask}
+          onClose={() => setTaskToDelete(null)}
         />
       )}
 

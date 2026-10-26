@@ -25,9 +25,11 @@ interface TaskDetailModalProps {
     at: number;
   };
   isMine: boolean;
+  isManager?: boolean;
   onClose: () => void;
   onStartTask: (id: string) => void;
   onOpenComplete: (id: string) => void;
+  onDeleteTask?: (task: any) => void;
 }
 
 const fmt = (t: number | null | undefined) =>
@@ -47,9 +49,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   task,
   emergency,
   isMine,
+  isManager,
   onClose,
   onStartTask,
-  onOpenComplete
+  onOpenComplete,
+  onDeleteTask
 }) => {
   if (id.startsWith('E:') && emergency) {
     return (
@@ -127,7 +131,18 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             <b>{task.assignedStaffId || 'Unassigned'}</b>
           </div>
         </div>
-        <div className="row" style={{ marginTop: '18px', justifyContent: 'flex-end' }}>
+        <div className="row" style={{ marginTop: '18px', justifyContent: 'flex-end', gap: '8px' }}>
+          {isManager && onDeleteTask ? (
+            <button
+              className="btn rd"
+              onClick={() => {
+                onClose();
+                onDeleteTask(task);
+              }}
+            >
+              DELETE TASK
+            </button>
+          ) : null}
           <button className="btn gh" onClick={onClose}>
             Close
           </button>

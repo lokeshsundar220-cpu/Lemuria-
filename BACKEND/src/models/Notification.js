@@ -86,5 +86,7 @@ notificationSchema.virtual('isRead').get(function () {
 });
 
 notificationSchema.index({ hotelId: 1, recipientType: 1, recipientId: 1, read: 1, createdAt: 1 });
+notificationSchema.index({ recipientId: 1, createdAt: -1 });
+notificationSchema.index({ recipientId: 1, read: 1 });
 
 module.exports = mongoose.model('Notification', notificationSchema, 'notifications');

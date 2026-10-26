@@ -319,45 +319,50 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({
         <div className="grid g2">
           <div className="card">
             <h2>Expected Arrivals & Check-in</h2>
-            {arrivals.length > 0 ? (
-              arrivals.map((a) => (
-                <div
-                  key={a.id}
-                  className="row bt"
-                  style={{ padding: '12px 0', borderBottom: '1px solid var(--ln)' }}
-                >
-                  <div>
-                    <b style={{ fontSize: '14px' }}>{a.guest}</b>
-                    <span className="mu">
-                      {' '}
-                      · Room {a.room} · {a.rtype}
-                    </span>
-                    <div className="mu" style={{ fontSize: '12px', marginTop: '2px' }}>
-                      {a.party} · {a.nights} nights · ETA {a.eta} ·{' '}
-                      <span className="gold">{a.resId}</span>
+            {(() => {
+              const expectedArrivals = arrivals.filter(
+                (a) => a.status === 'EXPECTED' || a.status === 'CHECK IN PENDING'
+              );
+              return expectedArrivals.length > 0 ? (
+                expectedArrivals.map((a) => (
+                  <div
+                    key={a.id}
+                    className="row bt"
+                    style={{ padding: '12px 0', borderBottom: '1px solid var(--ln)' }}
+                  >
+                    <div>
+                      <b style={{ fontSize: '14px' }}>{a.guest}</b>
+                      <span className="mu">
+                        {' '}
+                        · Room {a.room} · {a.rtype}
+                      </span>
+                      <div className="mu" style={{ fontSize: '12px', marginTop: '2px' }}>
+                        {a.party} · {a.nights} nights · ETA {a.eta} ·{' '}
+                        <span className="gold">{a.resId}</span>
+                      </div>
                     </div>
+                    {a.status === 'EXPECTED' ? (
+                      <div className="row">
+                        <Pill label="AWAITING VERIFICATION" />
+                        <button className="btn sm" onClick={() => onOpenVerifyModal(a.id)}>
+                          Verify Guest
+                        </button>
+                      </div>
+                    ) : (
+                      <Pill label={a.status} />
+                    )}
                   </div>
-                  {a.status === 'EXPECTED' ? (
-                    <div className="row">
-                      <Pill label="AWAITING VERIFICATION" />
-                      <button className="btn sm" onClick={() => onOpenVerifyModal(a.id)}>
-                        Verify Guest
-                      </button>
-                    </div>
-                  ) : (
-                    <Pill label={a.status} />
-                  )}
+                ))
+              ) : (
+                <div className="empty">
+                  <div style={{ fontSize: '26px', color: 'var(--gd)' }}>◈</div>
+                  <b>NO ARRIVALS EXPECTED</b>
+                  <div className="mu" style={{ fontSize: '13px', marginTop: '4px' }}>
+                    All guests checked in for today.
+                  </div>
                 </div>
-              ))
-            ) : (
-              <div className="empty">
-                <div style={{ fontSize: '26px', color: 'var(--gd)' }}>◈</div>
-                <b>NO ARRIVALS EXPECTED</b>
-                <div className="mu" style={{ fontSize: '13px', marginTop: '4px' }}>
-                  All guests checked in for today.
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div className="card">

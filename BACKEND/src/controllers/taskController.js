@@ -31,7 +31,9 @@ const getTasks = async (req, res, next) => {
     const hotelId = staff ? (staff.hotelId?._id || staff.hotelId) : req.query.hotelId;
     const { category, department, status, priority } = req.query;
 
-    const query = {};
+    const query = {
+      isDeleted: { $ne: true }
+    };
     if (hotelId) {
       query.$or = [{ hotelId }, { hotel: hotelId }];
     }
@@ -47,16 +49,29 @@ const getTasks = async (req, res, next) => {
       query.department = { $in: getDepartmentVariants(d) };
     }
 
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else {
+      query.status = { $ne: 'DELETED' };
+    }
     if (priority) query.priority = priority;
 
-    const tasks = await Task.find(query)
-      .populate('roomId')
-      .populate('assignedStaffId')
-      .populate('createdByStaff')
-      .sort({ createdAt: -1 });
+    const limit = parseInt(req.query.limit, 10) || 150;
 
-    return successResponse(res, 200, 'Tasks retrieved', tasks);
+    const tasks = await Task.find(query)
+      .populate('roomId', 'roomNumber room floor type')
+      .populate('assignedStaffId', 'name fullName staffCode staffId email department')
+      .populate('createdByStaff', 'name fullName staffCode staffId')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const formattedTasks = tasks.map((t) => ({
+      ...t,
+      id: t._id
+    }));
+
+    return successResponse(res, 200, 'Tasks retrieved', formattedTasks);
   } catch (error) {
     return next(error);
   }
@@ -142,6 +157,31 @@ const assignTask = async (req, res, next) => {
   }
 };
 
+const deleteTask = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const staff = req.staff;
+
+    const userDept = normalizeDepartment(staff?.department);
+    const isManager = userDept === 'manager' || staff?.role === 'MANAGER';
+    if (!isManager) {
+      return errorResponse(res, 403, 'Forbidden: Only managers can delete tasks');
+    }
+
+    const { reason } = req.body || {};
+    const task = await taskService.deleteTask(id, staff, reason);
+    return successResponse(res, 200, 'Task deleted successfully', task);
+  } catch (error) {
+    if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
+      return errorResponse(res, 403, error.message);
+    }
+    if (error.message.includes('not found')) {
+      return errorResponse(res, 404, error.message);
+    }
+    return errorResponse(res, 400, error.message);
+  }
+};
+
 module.exports = {
   createTask,
   getTasks,
@@ -151,5 +191,6 @@ module.exports = {
   timeoutOffer,
   assignTask,
   startTask,
-  completeTask
+  completeTask,
+  deleteTask
 };

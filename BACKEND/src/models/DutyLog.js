@@ -81,6 +81,7 @@ const dutyLogSchema = new mongoose.Schema(
 dutyLogSchema.index({ hotelId: 1, staffId: 1, status: 1 });
 dutyLogSchema.index({ hotelId: 1, workDate: 1 });
 dutyLogSchema.index({ status: 1, scheduledCutoffAt: 1 });
+dutyLogSchema.index({ status: 1, endedAt: 1 });
 
 module.exports = mongoose.model('DutyLog', dutyLogSchema, 'dutyLogs');
 

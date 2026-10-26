@@ -215,8 +215,13 @@ class AttendanceService {
   /**
    * Automatic 11:59 PM Attendance Closure (Idempotent Scheduler & Catch-up)
    */
-  async autoCloseExpiredAttendanceSessions() {
+  async autoCloseExpiredAttendanceSessions(force = false) {
     const now = new Date();
+
+    if (!force && process.env.NODE_ENV !== 'test' && this._lastAutoCloseCheck && (now.getTime() - this._lastAutoCloseCheck < 60000)) {
+      return { closedCount: 0 };
+    }
+    this._lastAutoCloseCheck = now.getTime();
 
     // Find all currently ACTIVE open duty logs
     const openLogs = await DutyLog.find({

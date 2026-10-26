@@ -67,7 +67,7 @@ const taskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'OFFERED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ESCALATED'],
+      enum: ['PENDING', 'OFFERED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ESCALATED', 'DELETED'],
       default: 'PENDING',
       index: true
     },
@@ -135,6 +135,24 @@ const taskSchema = new mongoose.Schema(
     afterImageUrl: {
       type: String,
       default: null
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    deletedAt: {
+      type: Date,
+      default: null
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Staff',
+      default: null
+    },
+    deleteReason: {
+      type: String,
+      default: ''
     },
     isDemo: {
       type: Boolean,
@@ -210,5 +228,10 @@ taskSchema.virtual('proofImageUrl').get(function () {
 
 taskSchema.index({ hotelId: 1, department: 1, status: 1, priority: 1, createdAt: 1 });
 taskSchema.index({ hotelId: 1, assignedStaffId: 1, status: 1 });
+taskSchema.index({ hotelId: 1, isDeleted: 1, status: 1 });
+taskSchema.index({ hotelId: 1, department: 1, status: 1, isDeleted: 1 });
+taskSchema.index({ roomId: 1, department: 1, status: 1, isDeleted: 1 });
+taskSchema.index({ roomNumber: 1, department: 1, status: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('Task', taskSchema, 'tasks');
+

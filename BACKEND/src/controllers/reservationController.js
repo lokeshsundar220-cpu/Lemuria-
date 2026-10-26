@@ -105,11 +105,17 @@ const getGuestReservations = async (req, res, next) => {
   try {
     const guestId = req.guest._id;
     const reservations = await Reservation.find({ guestId })
-      .populate('hotelId')
-      .populate('roomId')
-      .sort({ createdAt: -1 });
+      .populate('hotelId', 'name code hotelCode address')
+      .populate('roomId', 'roomNumber room floor type')
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return successResponse(res, 200, 'Reservations fetched', reservations);
+    const formatted = reservations.map((r) => ({
+      ...r,
+      id: r._id
+    }));
+
+    return successResponse(res, 200, 'Reservations fetched', formatted);
   } catch (error) {
     return next(error);
   }
@@ -129,13 +135,22 @@ const getHotelReservations = async (req, res, next) => {
       query.checkInDate = { $gte: startOfDay, $lte: endOfDay };
     }
 
-    const reservations = await Reservation.find(query)
-      .populate('guestId')
-      .populate('roomId')
-      .populate('hotelId')
-      .sort({ checkInDate: 1 });
+    const limit = parseInt(req.query.limit, 10) || 200;
 
-    return successResponse(res, 200, 'Hotel reservations fetched', reservations);
+    const reservations = await Reservation.find(query)
+      .populate('guestId', 'fullName name email phone guestCode')
+      .populate('roomId', 'roomNumber room floor type')
+      .populate('hotelId', 'name code hotelCode')
+      .sort({ checkInDate: 1 })
+      .limit(limit)
+      .lean();
+
+    const formatted = reservations.map((r) => ({
+      ...r,
+      id: r._id
+    }));
+
+    return successResponse(res, 200, 'Hotel reservations fetched', formatted);
   } catch (error) {
     return next(error);
   }

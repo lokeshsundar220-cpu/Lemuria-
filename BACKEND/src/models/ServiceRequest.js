@@ -55,7 +55,7 @@ const serviceRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['OPEN', 'PENDING', 'REQUESTED', 'OFFERING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+      enum: ['OPEN', 'PENDING', 'REQUESTED', 'OFFERING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'CANCELLED_AFTER_CHECKOUT', 'CLOSED_AFTER_CHECKOUT'],
       default: 'PENDING'
     },
     taskId: {
@@ -139,5 +139,9 @@ serviceRequestSchema.virtual('notes').get(function () {
 });
 
 serviceRequestSchema.index({ hotelId: 1, status: 1 });
+serviceRequestSchema.index({ guestId: 1, createdAt: -1 });
+serviceRequestSchema.index({ reservationId: 1, status: 1 });
+serviceRequestSchema.index({ hotelId: 1, department: 1, status: 1 });
 
 module.exports = mongoose.model('ServiceRequest', serviceRequestSchema, 'serviceRequests');
+

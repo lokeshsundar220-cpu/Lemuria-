@@ -13,8 +13,54 @@ const getRooms = async (req, res, next) => {
     if (status) query.$or = [{ state: status }, { status }];
     if (type) query.$or = [{ type }, { roomTypeId: type }];
 
-    const rooms = await Room.find(query).sort({ floor: 1, roomNumber: 1 });
-    return successResponse(res, 200, 'Rooms fetched successfully', rooms);
+    const rooms = await Room.find(query).sort({ floor: 1, roomNumber: 1 }).lean();
+
+    if (rooms.length === 0) {
+      return successResponse(res, 200, 'Rooms fetched successfully', []);
+    }
+
+    // Accurately reflect housekeeping readiness: a room with outstanding housekeeping work is not ready
+    const roomIds = rooms.map((r) => r._id);
+    const roomNumbers = rooms.map((r) => r.roomNumber);
+    const taskQuery = {
+      $or: [
+        { roomId: { $in: roomIds } },
+        { room: { $in: roomIds } },
+        { roomNumber: { $in: roomNumbers } }
+      ],
+      department: { $in: ['HOUSEKEEPING', 'housekeeping'] },
+      status: { $in: ['PENDING', 'OFFERED', 'ACCEPTED', 'IN_PROGRESS', 'ESCALATED'] },
+      isDeleted: { $ne: true }
+    };
+    if (hotelId) {
+      taskQuery.hotelId = hotelId;
+    }
+
+    const openHkTasks = await Task.find(taskQuery)
+      .select('roomId room roomNumber')
+      .lean();
+
+    const roomsWithOpenHk = new Set();
+    for (const t of openHkTasks) {
+      if (t.roomId) roomsWithOpenHk.add(String(t.roomId));
+      if (t.room) roomsWithOpenHk.add(String(t.room));
+      if (t.roomNumber) roomsWithOpenHk.add(String(t.roomNumber));
+    }
+
+    const adjustedRooms = rooms.map((r) => {
+      const doc = { ...r, id: r._id };
+      const hasOpenHk = roomsWithOpenHk.has(String(r._id)) || roomsWithOpenHk.has(String(r.roomNumber));
+      if (hasOpenHk) {
+        doc.isClean = false;
+        if (doc.state !== 'OCCUPIED') {
+          doc.state = 'CLEANING_REQUIRED';
+          doc.status = 'CLEANING_REQUIRED';
+        }
+      }
+      return doc;
+    });
+
+    return successResponse(res, 200, 'Rooms fetched successfully', adjustedRooms);
   } catch (error) {
     return next(error);
   }
@@ -27,7 +73,7 @@ const getRoomsByHotel = async (req, res, next) => {
 
     let targetHotelId = hotelId;
     if (!targetHotelId.match(/^[0-9a-fA-F]{24}$/)) {
-      const h = await Hotel.findOne({ $or: [{ hotelCode: hotelId.toUpperCase() }, { code: hotelId.toLowerCase() }] });
+      const h = await Hotel.findOne({ $or: [{ hotelCode: hotelId.toUpperCase() }, { code: hotelId.toLowerCase() }] }).lean();
       if (h) targetHotelId = h._id;
     }
 
@@ -35,8 +81,50 @@ const getRoomsByHotel = async (req, res, next) => {
     if (status) query.$or = [{ state: status }, { status }];
     if (type) query.type = type;
 
-    const rooms = await Room.find(query).sort({ floor: 1, roomNumber: 1 });
-    return successResponse(res, 200, 'Rooms fetched successfully', rooms);
+    const rooms = await Room.find(query).sort({ floor: 1, roomNumber: 1 }).lean();
+
+    if (rooms.length === 0) {
+      return successResponse(res, 200, 'Rooms fetched successfully', []);
+    }
+
+    const roomIds = rooms.map((r) => r._id);
+    const roomNumbers = rooms.map((r) => r.roomNumber);
+    const openHkTasks = await Task.find({
+      hotelId: targetHotelId,
+      $or: [
+        { roomId: { $in: roomIds } },
+        { room: { $in: roomIds } },
+        { roomNumber: { $in: roomNumbers } }
+      ],
+      department: { $in: ['HOUSEKEEPING', 'housekeeping'] },
+      status: { $in: ['PENDING', 'OFFERED', 'ACCEPTED', 'IN_PROGRESS', 'ESCALATED'] },
+      isDeleted: { $ne: true }
+    })
+      .select('roomId room roomNumber')
+      .lean();
+
+    const roomsWithOpenHk = new Set();
+    for (const t of openHkTasks) {
+      if (t.roomId) roomsWithOpenHk.add(String(t.roomId));
+      if (t.room) roomsWithOpenHk.add(String(t.room));
+      if (t.roomNumber) roomsWithOpenHk.add(String(t.roomNumber));
+    }
+
+    const adjustedRooms = rooms.map((r) => {
+      const doc = { ...r, id: r._id };
+      const hasOpenHk = roomsWithOpenHk.has(String(r._id)) || roomsWithOpenHk.has(String(r.roomNumber));
+      if (hasOpenHk) {
+        doc.isClean = false;
+        if (doc.state !== 'OCCUPIED') {
+          doc.state = 'CLEANING_REQUIRED';
+          doc.status = 'CLEANING_REQUIRED';
+        }
+      }
+      return doc;
+
+    });
+
+    return successResponse(res, 200, 'Rooms fetched successfully', adjustedRooms);
   } catch (error) {
     return next(error);
   }

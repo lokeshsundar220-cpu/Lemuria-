@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { Reservation, Room, RoomType, Hotel, Guest, Task, AuditLog } = require('../models');
+const { Reservation, Room, RoomType, Hotel, Guest, Task, ServiceRequest, TaskOffer, AuditLog } = require('../models');
 const taskService = require('./taskService');
 
 class BookingService {
@@ -352,6 +352,53 @@ class BookingService {
       guest.lifecycleStatus = 'CHECKED_OUT';
       guest.currentRoom = null;
       await guest.save();
+    }
+
+    // Automatically handle pending guest requests after check-out
+    const pendingGuestRequests = await ServiceRequest.find({
+      $or: [
+        { reservationId: reservation._id },
+        {
+          guestId: reservation.guestId,
+          roomNumber: reservation.roomNumber
+        }
+      ],
+      status: { $in: ['OPEN', 'PENDING', 'REQUESTED', 'OFFERING', 'ASSIGNED', 'IN_PROGRESS'] }
+    });
+
+    for (const req of pendingGuestRequests) {
+      // Do not automatically cancel unrelated maintenance issues that still require attention for room safety or hotel operations
+      if (req.department === 'MAINTENANCE') {
+        continue;
+      }
+
+      req.status = 'CANCELLED_AFTER_CHECKOUT';
+      await req.save();
+
+      // If this request had a linked task, cancel it and revoke any active offers
+      if (req.taskId) {
+        const linkedTask = await Task.findById(req.taskId);
+        if (linkedTask && linkedTask.status !== 'COMPLETED') {
+          linkedTask.status = 'CANCELLED';
+          linkedTask.assignmentState = 'AUTO';
+          await linkedTask.save();
+
+          await TaskOffer.updateMany(
+            { taskId: linkedTask._id, status: 'OFFERED' },
+            { status: 'CANCELLED', respondedAt: new Date() }
+          );
+
+          const assignedStaffId = linkedTask.assignedStaffId || linkedTask.assignedStaff;
+          if (assignedStaffId) {
+            const staffDoc = await Staff.findById(assignedStaffId);
+            if (staffDoc && String(staffDoc.currentTaskId) === String(linkedTask._id)) {
+              staffDoc.currentTaskId = null;
+              staffDoc.availability = 'AVAILABLE';
+              await staffDoc.save();
+            }
+          }
+        }
+      }
     }
 
     const housekeepingTask = await taskService.createTask(

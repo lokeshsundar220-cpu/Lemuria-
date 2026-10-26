@@ -73,11 +73,18 @@ const getGuestRequests = async (req, res, next) => {
   try {
     const guestId = req.guest._id;
     const requests = await ServiceRequest.find({ guestId })
-      .populate('roomId')
-      .populate('assignedStaffId')
-      .sort({ createdAt: -1 });
+      .populate('roomId', 'roomNumber room floor type')
+      .populate('assignedStaffId', 'name fullName staffCode staffId email department')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
 
-    return successResponse(res, 200, 'Service requests retrieved', requests);
+    const formatted = requests.map((r) => ({
+      ...r,
+      id: r._id
+    }));
+
+    return successResponse(res, 200, 'Service requests retrieved', formatted);
   } catch (error) {
     return next(error);
   }
@@ -90,15 +97,26 @@ const getDepartmentRequests = async (req, res, next) => {
 
     const query = { hotelId };
     if (department) query.department = department;
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else if (req.query.activeOnly === 'true') {
+      query.status = { $nin: ['COMPLETED', 'CANCELLED', 'CANCELLED_AFTER_CHECKOUT', 'CLOSED_AFTER_CHECKOUT'] };
+    }
 
     const requests = await ServiceRequest.find(query)
-      .populate('guestId')
-      .populate('roomId')
-      .populate('assignedStaffId')
-      .sort({ createdAt: -1 });
+      .populate('guestId', 'fullName name email phone guestCode')
+      .populate('roomId', 'roomNumber room floor type')
+      .populate('assignedStaffId', 'name fullName staffCode staffId email department')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
 
-    return successResponse(res, 200, 'Department requests retrieved', requests);
+    const formatted = requests.map((r) => ({
+      ...r,
+      id: r._id
+    }));
+
+    return successResponse(res, 200, 'Department requests retrieved', formatted);
   } catch (error) {
     return next(error);
   }

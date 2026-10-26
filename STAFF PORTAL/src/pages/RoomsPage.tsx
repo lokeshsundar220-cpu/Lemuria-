@@ -6,7 +6,10 @@ interface RoomsPageProps {
     id: string;
     type: string;
     state: string;
+    status?: string;
     guest: string | null;
+    isClean?: boolean;
+    floor?: number;
   }[];
   tasks: {
     id: string;
@@ -44,7 +47,23 @@ export const RoomsPage: React.FC<RoomsPageProps> = ({
 }) => {
   const isReception = userDept === 'reception';
   const isManager = userDept === 'manager';
-  const inspections = rooms.filter((r) => r.state === 'INSPECTION REQUIRED');
+  const inspections = React.useMemo(
+    () => rooms.filter((r) => r.state === 'INSPECTION REQUIRED' || r.state === 'INSPECTION_REQUIRED'),
+    [rooms]
+  );
+
+  const { hkCountByRoom, mtCountByRoom } = React.useMemo(() => {
+    const hk: Record<string, number> = {};
+    const mt: Record<string, number> = {};
+    for (const t of tasks) {
+      if (t.status !== 'COMPLETED' && t.roomId) {
+        const dept = (t.department || '').toLowerCase();
+        if (dept === 'housekeeping') hk[t.roomId] = (hk[t.roomId] || 0) + 1;
+        if (dept === 'maintenance') mt[t.roomId] = (mt[t.roomId] || 0) + 1;
+      }
+    }
+    return { hkCountByRoom: hk, mtCountByRoom: mt };
+  }, [tasks]);
 
   return (
     <>
@@ -54,12 +73,22 @@ export const RoomsPage: React.FC<RoomsPageProps> = ({
 
       <div className="grid g4">
         {rooms.map((r) => {
-          const ht = tasks.filter(
-            (t) => t.roomId === r.id && t.department === 'housekeeping' && t.status !== 'COMPLETED'
-          ).length;
-          const mt = tasks.filter(
-            (t) => t.roomId === r.id && t.department === 'maintenance' && t.status !== 'COMPLETED'
-          ).length;
+          const ht = hkCountByRoom[r.id] || 0;
+          const mt = mtCountByRoom[r.id] || 0;
+
+          const isOccupied = Boolean(r.guest || r.state === 'OCCUPIED');
+          const hasCleaningWork = ht > 0 || r.isClean === false || r.state === 'CLEANING_REQUIRED' || r.state === 'CLEANING';
+          const isInspection = r.state === 'INSPECTION REQUIRED' || r.state === 'INSPECTION_REQUIRED';
+
+          // Separate Availability and Housekeeping Readiness
+          const availability = isOccupied ? 'OCCUPIED' : 'VACANT';
+          const readiness = hasCleaningWork
+            ? 'CLEANING REQUIRED'
+            : isInspection
+            ? 'INSPECTION REQUIRED'
+            : isOccupied
+            ? 'IN USE'
+            : 'READY';
 
           return (
             <div key={r.id} className="card">
@@ -67,7 +96,10 @@ export const RoomsPage: React.FC<RoomsPageProps> = ({
                 <b className="serif" style={{ fontSize: '22px' }}>
                   {r.id}
                 </b>
-                <Pill label={r.state} />
+                <div className="row" style={{ gap: '4px' }}>
+                  <Pill label={availability} />
+                  <Pill label={readiness} />
+                </div>
               </div>
               <div className="mu" style={{ margin: '4px 0' }}>
                 {r.type}

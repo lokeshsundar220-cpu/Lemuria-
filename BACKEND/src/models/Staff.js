@@ -160,5 +160,8 @@ staffSchema.methods.isEnabled = function () {
 };
 
 staffSchema.index({ hotelId: 1, department: 1, duty: 1, availability: 1 });
+staffSchema.index({ hotelId: 1, department: 1, dutyStatus: 1, availability: 1 });
+staffSchema.index({ hotelId: 1, dutyStatus: 1, availability: 1, enabled: 1 });
 
 module.exports = mongoose.model('Staff', staffSchema, 'staff');
+

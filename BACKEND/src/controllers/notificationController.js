@@ -5,22 +5,22 @@ const getMyNotifications = async (req, res, next) => {
   try {
     const recipientId = req.staff ? req.staff._id : req.guest ? req.guest._id : req.user._id;
 
-    const notifications = await Notification.find({
+    const query = {
       $or: [
         { recipientId: recipientId },
         { recipientUser: recipientId }
       ]
-    })
-      .sort({ createdAt: -1 })
-      .limit(30);
+    };
 
-    const unreadCount = await Notification.countDocuments({
-      $or: [
-        { recipientId: recipientId },
-        { recipientUser: recipientId }
-      ],
-      read: false
-    });
+    const [rawNotifications, unreadCount] = await Promise.all([
+      Notification.find(query).sort({ createdAt: -1 }).limit(30).lean(),
+      Notification.countDocuments({ ...query, read: false })
+    ]);
+
+    const notifications = (rawNotifications || []).map((n) => ({
+      ...n,
+      id: n._id
+    }));
 
     return successResponse(res, 200, 'Notifications fetched', {
       notifications,

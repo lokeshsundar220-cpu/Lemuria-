@@ -39,6 +39,7 @@ interface DashboardPageProps {
     startedAt: number | null;
     completedAt: number | null;
     estimatedDuration: number;
+    isDeleted?: boolean;
   }[];
   rooms: {
     id: string;
@@ -95,6 +96,7 @@ interface DashboardPageProps {
   onOpenEmergencyDetail: (id: string) => void;
   onOpenVerifyModal: (id: string) => void;
   onSetManagerBoardDept: (dept: string) => void;
+  onDeleteTask?: (task: any) => void;
 }
 
 const fmt = (t: number | null | undefined) =>
@@ -122,7 +124,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenAssignStaff,
   onOpenEmergencyDetail,
   onOpenVerifyModal,
-  onSetManagerBoardDept
+  onSetManagerBoardDept,
+  onDeleteTask
 }) => {
   const isReception = staff.department === 'reception';
   const isDisp = ['housekeeping', 'maintenance', 'fnb'].includes(staff.department);
@@ -203,8 +206,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       ['Staff On Duty', onDutyStaff.length, '--g']
     ];
   } else if (d === 'reception') {
+    const expCount = arrivals.filter((a) => a.status === 'EXPECTED' || a.status === 'CHECK IN PENDING').length;
     metrics = [
-      ["Today's Expected Arrivals", arrivals.length],
+      ["Today's Expected Arrivals", expCount],
       ['Pending Check-ins', arrivals.filter((a) => a.status === 'EXPECTED').length, '--o'],
       ['In-House Guests', rooms.filter((r) => r.guest).length],
       ['Check-outs Pending', rooms.filter((r) => r.state === 'CHECKOUT').length],
@@ -259,6 +263,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   }
 
   const pendingEmergencies = emergencies.filter((e) => !e.ack);
+
+  const completedTasksList = React.useMemo(
+    () => tasks.filter((t) => t.status === 'COMPLETED' && !t.isDeleted),
+    [tasks]
+  );
 
   const renderTaskCard = (t: typeof tasks[0], canAct: boolean) => {
     const assignedStaff = allStaff.find((x) => x.id === t.assignedStaffId);
@@ -343,7 +352,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         ) : null}
 
-        {isManagerRole && !t.assignedStaffId && onOpenAssignStaff ? (
+        {isManagerRole && onDeleteTask ? (
+          <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+            {!t.assignedStaffId && onOpenAssignStaff ? (
+              <button
+                className="btn sm gd"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenAssignStaff(t);
+                }}
+              >
+                ASSIGN STAFF
+              </button>
+            ) : null}
+            <button
+              className="btn sm rd"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteTask(t);
+              }}
+            >
+              DELETE
+            </button>
+          </div>
+        ) : isManagerRole && !t.assignedStaffId && onOpenAssignStaff ? (
           <div style={{ marginTop: '10px' }}>
             <button
               className="btn sm gd"
@@ -598,45 +630,50 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="grid g2">
             <div className="card">
               <h2>Expected Arrivals</h2>
-              {arrivals.length > 0 ? (
-                arrivals.map((a) => (
-                  <div
-                    key={a.id}
-                    className="row bt"
-                    style={{ padding: '12px 0', borderBottom: '1px solid var(--ln)' }}
-                  >
-                    <div>
-                      <b style={{ fontSize: '14px' }}>{a.guest}</b>
-                      <span className="mu">
-                        {' '}
-                        · Room {a.room} · {a.rtype}
-                      </span>
-                      <div className="mu" style={{ fontSize: '12px', marginTop: '2px' }}>
-                        {a.party} · {a.nights} nights · ETA {a.eta} ·{' '}
-                        <span className="gold">{a.resId}</span>
+              {(() => {
+                const expectedArrivals = arrivals.filter(
+                  (a) => a.status === 'EXPECTED' || a.status === 'CHECK IN PENDING'
+                );
+                return expectedArrivals.length > 0 ? (
+                  expectedArrivals.map((a) => (
+                    <div
+                      key={a.id}
+                      className="row bt"
+                      style={{ padding: '12px 0', borderBottom: '1px solid var(--ln)' }}
+                    >
+                      <div>
+                        <b style={{ fontSize: '14px' }}>{a.guest}</b>
+                        <span className="mu">
+                          {' '}
+                          · Room {a.room} · {a.rtype}
+                        </span>
+                        <div className="mu" style={{ fontSize: '12px', marginTop: '2px' }}>
+                          {a.party} · {a.nights} nights · ETA {a.eta} ·{' '}
+                          <span className="gold">{a.resId}</span>
+                        </div>
                       </div>
+                      {a.status === 'EXPECTED' ? (
+                        <div className="row">
+                          <Pill label="AWAITING VERIFICATION" />
+                          <button className="btn sm" onClick={() => onOpenVerifyModal(a.id)}>
+                            Verify Guest
+                          </button>
+                        </div>
+                      ) : (
+                        <Pill label={a.status} />
+                      )}
                     </div>
-                    {a.status === 'EXPECTED' ? (
-                      <div className="row">
-                        <Pill label="AWAITING VERIFICATION" />
-                        <button className="btn sm" onClick={() => onOpenVerifyModal(a.id)}>
-                          Verify Guest
-                        </button>
-                      </div>
-                    ) : (
-                      <Pill label={a.status} />
-                    )}
+                  ))
+                ) : (
+                  <div className="empty">
+                    <div style={{ fontSize: '26px', color: 'var(--gd)' }}>◈</div>
+                    <b>NO ARRIVALS EXPECTED</b>
+                    <div className="mu" style={{ fontSize: '13px', marginTop: '4px' }}>
+                      All guests checked in for today.
+                    </div>
                   </div>
-                ))
-              ) : (
-                <div className="empty">
-                  <div style={{ fontSize: '26px', color: 'var(--gd)' }}>◈</div>
-                  <b>NO ARRIVALS EXPECTED</b>
-                  <div className="mu" style={{ fontSize: '13px', marginTop: '4px' }}>
-                    All guests checked in for today.
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             <div className="card">
@@ -742,6 +779,91 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div style={{ height: '10px' }}></div>
           {renderBoard(managerBoardDept, false)}
+
+          <div style={{ height: '24px' }}></div>
+          <div className="card tw">
+            <div className="row bt" style={{ marginBottom: '12px' }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Completed Task History</h2>
+                <div className="mu" style={{ fontSize: '12.5px', marginTop: '2px' }}>
+                  Recently completed housekeeping and maintenance work orders
+                </div>
+              </div>
+              <Pill label={`${completedTasksList.length} COMPLETED TOTAL`} />
+            </div>
+
+            {completedTasksList.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Task Code</th>
+                    <th>Room</th>
+                    <th>Task Type</th>
+                    <th>Department</th>
+                    <th>Assigned Staff</th>
+                    <th>Created</th>
+                    <th>Completed At</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                    {onDeleteTask ? <th>Action</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {completedTasksList
+                    .slice(0, 15)
+                    .map((t) => {
+                      const dur =
+                        t.completedAt && (t.startedAt || t.createdAt)
+                          ? `${Math.max(1, Math.round((t.completedAt - (t.startedAt || t.createdAt)!) / 60000))} min`
+                          : '—';
+                      return (
+                        <tr
+                          key={t.id}
+                          onClick={() => onTaskClick(t.id)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td>
+                            <b className="gold">{t.id}</b>
+                          </td>
+                          <td>{t.roomId ? `Room ${t.roomId}` : 'General Area'}</td>
+                          <td>{t.type}</td>
+                          <td>{deptMap[t.department] || t.department}</td>
+                          <td>{t.assignedStaffId || 'Housekeeper/Tech'}</td>
+                          <td>{fmt(t.createdAt)}</td>
+                          <td>{fmt(t.completedAt)}</td>
+                          <td style={{ color: 'var(--g)', fontWeight: 600 }}>{dur}</td>
+                          <td>
+                            <Pill label="COMPLETED" />
+                          </td>
+                          {onDeleteTask ? (
+                            <td>
+                              <button
+                                className="btn sm rd"
+                                style={{ padding: '2px 8px', fontSize: '11px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteTask(t);
+                                }}
+                              >
+                                DELETE
+                              </button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty">
+                <div style={{ fontSize: '26px', color: 'var(--gd)' }}>◈</div>
+                <b>NO COMPLETED TASKS IN HISTORY</b>
+                <div className="mu" style={{ fontSize: '13px', marginTop: '4px' }}>
+                  Completed housekeeping and maintenance work orders will remain accessible here.
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </>
