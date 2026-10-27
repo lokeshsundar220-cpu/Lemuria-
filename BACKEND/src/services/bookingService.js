@@ -367,8 +367,20 @@ class BookingService {
     });
 
     for (const req of pendingGuestRequests) {
-      // Do not automatically cancel unrelated maintenance issues that still require attention for room safety or hotel operations
+      // Check if linked task was already completed before cancelling
+      if (req.taskId) {
+        const linkedTask = await Task.findById(req.taskId);
+        if (linkedTask && linkedTask.status === 'COMPLETED') {
+          req.status = 'COMPLETED';
+          await req.save();
+          continue;
+        }
+      }
+
+      // Do not leave past guest maintenance requests as active in guest queues after checkout
       if (req.department === 'MAINTENANCE') {
+        req.status = 'CLOSED_AFTER_CHECKOUT';
+        await req.save();
         continue;
       }
 

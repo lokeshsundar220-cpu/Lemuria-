@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { Task, TaskOffer, Staff, Room, Notification, AuditLog } = require('../models');
+const { Task, TaskOffer, Staff, Room, Notification, AuditLog, ServiceRequest } = require('../models');
 
 const findTaskDoc = async (taskId) => {
   if (!taskId) return null;
@@ -28,6 +28,24 @@ const findStaffDoc = async (staffId) => {
 };
 
 class TaskService {
+  async syncServiceRequestStatus(task, newStatus, extra = {}) {
+    try {
+      const srId = task.serviceRequestId || task.serviceRequest;
+      if (!srId) return;
+      const updateData = {
+        status: newStatus,
+        updatedAt: new Date()
+      };
+      if (extra.assignedStaffId) updateData.assignedStaffId = extra.assignedStaffId;
+      if (extra.assignedStaffName) updateData.assignedStaffName = extra.assignedStaffName;
+      if (extra.completedAt) updateData.completedAt = extra.completedAt;
+      if (extra.resolutionNotes) updateData.resolutionNotes = extra.resolutionNotes;
+      await ServiceRequest.findByIdAndUpdate(srId, updateData);
+    } catch (err) {
+      console.warn('[TaskService] Failed to sync ServiceRequest status:', err.message);
+    }
+  }
+
   async createTask(taskData, createdByStaffId = null, requestedByGuestId = null) {
     const {
       title,
@@ -47,8 +65,12 @@ class TaskService {
     const actualDept = department || category || 'HOUSEKEEPING';
     const actualHotelId = hotelId || taskData.hotel;
 
-    const count = await Task.countDocuments();
-    const taskCode = `TSK-${String(count + 1001).padStart(5, '0')}`;
+    let count = await Task.countDocuments();
+    let taskCode = `TSK-${String(count + 1001).padStart(5, '0')}`;
+    while (await Task.exists({ taskCode })) {
+      count++;
+      taskCode = `TSK-${String(count + 1001).padStart(5, '0')}`;
+    }
 
     let rNum = roomNumber;
     if (!rNum && roomId) {
@@ -382,6 +404,11 @@ class TaskService {
       details: { taskCode: task.taskCode || task.taskNumber, staffCode: staff.staffCode }
     });
 
+    await this.syncServiceRequestStatus(task, 'ACCEPTED', {
+      assignedStaffId: staff._id,
+      assignedStaffName: staff.name || staff.fullName
+    });
+
     console.log(`[TaskDispatcher] Task ${task.taskCode} successfully ACCEPTED by staff ${staff.staffCode} (${staff.name})`);
     return { task, offer, staff };
   }
@@ -431,6 +458,11 @@ class TaskService {
     staff.availability = 'BUSY';
     staff.currentTaskId = task._id;
     await staff.save();
+
+    await this.syncServiceRequestStatus(task, 'ACCEPTED', {
+      assignedStaffId: staff._id,
+      assignedStaffName: staff.name || staff.fullName
+    });
 
     return task;
   }
@@ -496,6 +528,11 @@ class TaskService {
       entityType: 'Task',
       entityId: task._id.toString(),
       details: { taskCode: task.taskCode, staffCode: staff.staffCode, staffName: staff.name }
+    });
+
+    await this.syncServiceRequestStatus(task, 'ACCEPTED', {
+      assignedStaffId: staff._id,
+      assignedStaffName: staff.name || staff.fullName
     });
 
     try {
@@ -604,6 +641,8 @@ class TaskService {
     task.startedAt = new Date();
     await task.save();
 
+    await this.syncServiceRequestStatus(task, 'IN_PROGRESS');
+
     const targetRoomId = task.roomId || task.room;
     if (targetRoomId) {
       const room = mongoose.Types.ObjectId.isValid(targetRoomId) ? await Room.findById(targetRoomId) : await Room.findOne({ roomNumber: targetRoomId });
@@ -651,6 +690,11 @@ class TaskService {
     task.completionNote = notes || 'Task completed';
     task.proofImageUrl = proof;
     await task.save();
+
+    await this.syncServiceRequestStatus(task, 'COMPLETED', {
+      completedAt: task.completedAt,
+      resolutionNotes: notes || 'Task completed'
+    });
 
     staff.availability = 'AVAILABLE';
     staff.currentTaskId = null;
@@ -849,6 +893,8 @@ class TaskService {
     task.deletedBy = managerStaff._id || managerStaff.id;
     task.deleteReason = reason || 'Deleted by manager';
     await task.save();
+
+    await this.syncServiceRequestStatus(task, 'CANCELLED');
 
     // Audit log
     try {

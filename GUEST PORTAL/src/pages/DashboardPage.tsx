@@ -64,7 +64,7 @@ const getStatusBadge = (status: string) => {
 const getRequestBadgeClass = (status: string) => {
   const norm = (status || '').toUpperCase();
   if (norm === 'COMPLETED' || norm === 'RESOLVED') return 'b-green';
-  if (norm === 'CANCELLED' || norm === 'DECLINED') return 'b-grey';
+  if (norm === 'CANCELLED' || norm === 'DECLINED' || norm === 'CANCELLED_AFTER_CHECKOUT' || norm === 'CLOSED_AFTER_CHECKOUT') return 'b-grey';
   if (norm === 'IN_PROGRESS' || norm === 'IN PROGRESS') return 'b-purple';
   if (norm === 'ACCEPTED' || norm === 'OFFERED' || norm === 'OFFERING') return 'b-blue';
   return 'b-amber';
@@ -105,7 +105,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const recentRequests = requests.slice(0, 3);
   const activeRequestsCount = requests.filter(
-    (r) => !['COMPLETED', 'RESOLVED', 'CANCELLED', 'DECLINED'].includes((r.status || '').toUpperCase())
+    (r) => !['COMPLETED', 'RESOLVED', 'CANCELLED', 'DECLINED', 'CANCELLED_AFTER_CHECKOUT', 'CLOSED_AFTER_CHECKOUT'].includes((r.status || '').toUpperCase())
   ).length;
 
   return (

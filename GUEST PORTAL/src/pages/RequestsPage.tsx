@@ -58,6 +58,9 @@ const getStatusBadge = (status: string) => {
     case 'OFFERING':
     case 'OFFERED':
       return <span className="badge b-blue">Dispatching</span>;
+    case 'CANCELLED_AFTER_CHECKOUT':
+    case 'CLOSED_AFTER_CHECKOUT':
+      return <span className="badge b-grey">Closed (Stay Ended)</span>;
     case 'CANCELLED':
     case 'DECLINED':
       return <span className="badge b-grey">{status}</span>;
@@ -249,7 +252,7 @@ export const RequestsPage: React.FC<RequestsPageProps> = ({
           {filteredRequests.map((r) => {
             const isEmg = (r.priority || '').toUpperCase() === 'EMERGENCY' || r.dept?.toLowerCase() === 'emergency';
             const stepIdx = getStepIndex(r.status);
-            const isCancelled = (r.status || '').toUpperCase() === 'CANCELLED' || (r.status || '').toUpperCase() === 'DECLINED';
+            const isCancelled = ['CANCELLED', 'DECLINED', 'CANCELLED_AFTER_CHECKOUT', 'CLOSED_AFTER_CHECKOUT'].includes((r.status || '').toUpperCase());
             const fb = feedbackMap[r.id];
             const currentRating = starRatings[r.id] || 0;
             const icon = DEPT_ICONS[r.dept] || '🛎️';

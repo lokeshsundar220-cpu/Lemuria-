@@ -12,6 +12,35 @@ interface LoginPageProps {
   onBack: () => void;
 }
 
+interface DemoPreset {
+  id: string;
+  name: string;
+  hotel: string;
+}
+
+const DEMO_STAFF_MAP: Record<string, DemoPreset[]> = {
+  housekeeping: [
+    { id: 'HIL-HK-001', name: 'Kavitha Raman', hotel: 'Hills Resort (Ooty Demo)' },
+    { id: 'GRD-HK-001', name: 'Priya Nair', hotel: 'Grand Hotel (Goa)' }
+  ],
+  maintenance: [
+    { id: 'HIL-MT-001', name: 'Bala Murugan', hotel: 'Hills Resort (Ooty Demo)' },
+    { id: 'GRD-MT-001', name: 'Vikram Singh', hotel: 'Grand Hotel (Goa)' }
+  ],
+  fnb: [
+    { id: 'HIL-FB-001', name: 'Divya Krishnan', hotel: 'Hills Resort (Ooty Demo)' },
+    { id: 'GRD-FB-001', name: 'Rohan Mehra', hotel: 'Grand Hotel (Goa)' }
+  ],
+  reception: [
+    { id: 'HIL-RC-001', name: 'Lakshmi Iyer', hotel: 'Hills Resort (Ooty Demo)' },
+    { id: 'GRD-RC-001', name: 'Ananya Desai', hotel: 'Grand Hotel (Goa)' }
+  ],
+  manager: [
+    { id: 'HIL-MG-001', name: 'Ganesh Subramanian', hotel: 'Hills Resort (Ooty Demo)' },
+    { id: 'GRD-MG-001', name: 'Rajesh Sharma', hotel: 'Grand Hotel (Goa)' }
+  ]
+};
+
 export const LoginPage: React.FC<LoginPageProps> = ({
   department,
   deptName,
@@ -22,8 +51,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   onLogin,
   onBack
 }) => {
-  const deptStaff = staffList.filter((x) => x.department.toLowerCase() === department.toLowerCase());
-  const defaultStaff = deptStaff[0] || { id: department === 'manager' ? 'GRD-MG-001' : 'GRD-HK-001' };
+  const normDept = department.toLowerCase();
+  const presets = DEMO_STAFF_MAP[normDept] || [];
+  const deptStaff = staffList.filter((x) => x.department.toLowerCase() === normDept);
+  const defaultStaff = deptStaff[0] || presets[0] || { id: normDept === 'manager' ? 'HIL-MG-001' : 'HIL-HK-001' };
 
   const [sid, setSid] = useState('');
   const [pw, setPw] = useState('Password123!');
@@ -121,28 +152,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
           <div
             className="mu"
-            style={{ fontSize: '11.5px', marginTop: '16px', textAlign: 'center', lineHeight: 1.5 }}
+            style={{ fontSize: '12px', marginTop: '16px', textAlign: 'center', lineHeight: 1.6 }}
           >
-            Demo credentials for {deptName}:<br />
-            {deptStaff.length > 0 ? (
-              deptStaff.map((s, idx) => (
-                <React.Fragment key={s.id}>
-                  {idx > 0 ? ' · ' : ''}
-                  <code
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setSid(s.id)}
-                    title="Click to fill"
+            <div style={{ fontWeight: 600, color: 'var(--gd)', marginBottom: '4px' }}>
+              Select Demo Staff Profile for {deptName}:
+            </div>
+            {presets.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: '8px 0' }}>
+                {presets.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="btn sm gh"
+                    style={{
+                      justifyContent: 'space-between',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      borderColor: sid === p.id ? 'var(--gd)' : 'var(--ln)'
+                    }}
+                    onClick={() => setSid(p.id)}
                   >
-                    {s.id}
-                  </code>{' '}
-                  ({s.enabled})
-                </React.Fragment>
-              ))
+                    <span><b>{p.id}</b> · {p.name}</span>
+                    <span style={{ fontSize: '11px', opacity: 0.8 }}>{p.hotel}</span>
+                  </button>
+                ))}
+              </div>
             ) : (
-              <code>GRD-{department.toUpperCase().slice(0, 2)}-001</code>
+              <code>HIL-{department.toUpperCase().slice(0, 2)}-001</code>
             )}
-            <br />
-            Standard Password: <code>Password123!</code>
+            <div style={{ fontSize: '11px', marginTop: '4px' }}>
+              Standard Password: <code>Password123!</code>
+            </div>
           </div>
         </div>
       </div>

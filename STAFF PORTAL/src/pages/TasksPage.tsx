@@ -46,14 +46,17 @@ export const TasksPage: React.FC<TasksPageProps> = ({
   onTaskClick,
   onDeleteTask
 }) => {
-  const isDisp = ['housekeeping', 'maintenance', 'fnb'].includes(userDept);
-  const isManager = userDept === 'manager' || userDept === 'MANAGER';
+  const normalizedDept = (userDept || '').toLowerCase();
+  const isDisp = ['housekeeping', 'maintenance', 'fnb'].includes(normalizedDept);
+  const isManager = normalizedDept === 'manager';
 
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [selectedDept, setSelectedDept] = useState<string>('all');
 
   const { activeList, historyList, currentList } = React.useMemo(() => {
-    const baseTasks = isDisp ? tasks.filter((t) => t.department === userDept) : tasks;
+    const baseTasks = isDisp
+      ? tasks.filter((t) => (t.department || '').toLowerCase() === normalizedDept)
+      : tasks;
     const nonDeleted = baseTasks.filter((t) => !t.isDeleted && t.status !== 'DELETED');
     const deptFiltered =
       selectedDept === 'all'
@@ -65,7 +68,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({
     const current = activeTab === 'active' ? active : history;
 
     return { activeList: active, historyList: history, currentList: current };
-  }, [tasks, isDisp, userDept, selectedDept, activeTab]);
+  }, [tasks, isDisp, normalizedDept, selectedDept, activeTab]);
 
   const getDuration = (t: typeof tasks[0]) => {
     if (!t.completedAt) return '—';

@@ -70,6 +70,7 @@ export const App: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [serviceModalData, setServiceModalData] = useState<{ dept: string; item: string } | null>(null);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
   const toastTimerRef = useRef<number | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -298,6 +299,8 @@ export const App: React.FC = () => {
       showToast('Requests open once you are checked in.');
       return;
     }
+    if (isSubmittingRequest) return;
+    setIsSubmittingRequest(true);
     try {
       await api.services.createRequest(dept, desc, priority);
       showToast(priority === 'EMERGENCY' ? 'Emergency alert sent.' : 'Request sent to hotel staff');
@@ -305,6 +308,8 @@ export const App: React.FC = () => {
       navigate('requests');
     } catch (err: any) {
       showToast(err.message || 'Could not send request');
+    } finally {
+      setIsSubmittingRequest(false);
     }
   };
 
